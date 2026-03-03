@@ -88,7 +88,8 @@ public class ConfigScreenFactory {
                                 Component.literal("Capture Rewarp End Position"),
                                 Component.literal("Captures your current position as the trigger for PlotTP Rewarp."),
                                 button -> {
-                                        net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+                                        net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft
+                                                        .getInstance();
                                         if (client.player != null) {
                                                 MacroConfig.rewarpEndX = client.player.getX();
                                                 MacroConfig.rewarpEndY = client.player.getY();
@@ -427,6 +428,14 @@ public class ConfigScreenFactory {
                                 .setDefaultValue(MacroConfig.DEFAULT_DISCORD_STATUS_UPDATE_TIME)
                                 .setMax(1440)
                                 .setSaveConsumer(newValue -> MacroConfig.discordStatusUpdateTime = newValue)
+                                .build());
+
+                qol.addEntry(builder.entryBuilder()
+                                .startBooleanToggle(Component.literal("Show Debug Messages"), MacroConfig.showDebug)
+                                .setDefaultValue(MacroConfig.DEFAULT_SHOW_DEBUG)
+                                .setTooltip(Component
+                                                .literal("Show [Debug] messages in chat for menu detections and AOTV."))
+                                .setSaveConsumer(newValue -> MacroConfig.showDebug = newValue)
                                 .build());
 
                 return builder.build();

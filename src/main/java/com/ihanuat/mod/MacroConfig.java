@@ -72,6 +72,7 @@ public class MacroConfig {
             "Fruit Bowl", "Farming Exp Boost", "Sunder VI");
     public static final String DEFAULT_DROP_JUNK_PLOT_TP = "0";
     public static final int DEFAULT_JUNK_THRESHOLD = 3;
+    public static final boolean DEFAULT_SHOW_DEBUG = false;
 
     // Pet Tracker Defaults
     public static final java.util.List<String> DEFAULT_PET_TRACKER_LIST = java.util.Arrays.asList(
@@ -192,6 +193,7 @@ public class MacroConfig {
     public static java.util.List<String> junkItems = new java.util.ArrayList<>(DEFAULT_JUNK_ITEMS);
     public static String dropJunkPlotTp = DEFAULT_DROP_JUNK_PLOT_TP;
     public static int junkThreshold = DEFAULT_JUNK_THRESHOLD;
+    public static boolean showDebug = DEFAULT_SHOW_DEBUG;
 
     public static java.util.List<String> petTrackerList = new java.util.ArrayList<>(DEFAULT_PET_TRACKER_LIST);
 
@@ -334,6 +336,7 @@ public class MacroConfig {
         data.junkItems = new java.util.ArrayList<>(junkItems);
         data.dropJunkPlotTp = dropJunkPlotTp;
         data.junkThreshold = junkThreshold;
+        data.showDebug = showDebug;
 
         data.petTrackerList = new java.util.ArrayList<>(petTrackerList);
 
@@ -432,6 +435,7 @@ public class MacroConfig {
                     dropJunkPlotTp = data.dropJunkPlotTp;
                 }
                 junkThreshold = data.junkThreshold;
+                showDebug = data.showDebug;
 
                 if (data.petTrackerList != null) {
                     petTrackerList = new java.util.ArrayList<>(data.petTrackerList);
@@ -512,6 +516,7 @@ public class MacroConfig {
         java.util.List<String> junkItems = new java.util.ArrayList<>(DEFAULT_JUNK_ITEMS);
         String dropJunkPlotTp = DEFAULT_DROP_JUNK_PLOT_TP;
         int junkThreshold = DEFAULT_JUNK_THRESHOLD;
+        boolean showDebug = DEFAULT_SHOW_DEBUG;
 
         java.util.List<String> petTrackerList = new java.util.ArrayList<>(DEFAULT_PET_TRACKER_LIST);
 

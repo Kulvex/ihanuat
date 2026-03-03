@@ -1,7 +1,6 @@
 package com.ihanuat.mod.util;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -103,9 +102,7 @@ public class CommandUtils {
         boolean success = waitForChatMessage(client, "Your spawn location has been set!");
 
         if (success && client.player != null) {
-            client.player.displayClientMessage(
-                    Component.literal("§9[Debug] Spawn set has been detected"),
-                    false);
+            ClientUtils.sendDebugMessage(client, "Spawn set has been detected");
         }
 
         return success;
@@ -142,9 +139,7 @@ public class CommandUtils {
         boolean success = waitForChatMessage(client, "Warping...");
 
         if (success && client.player != null) {
-            client.player.displayClientMessage(
-                    Component.literal("§9[Debug] /warp garden success"),
-                    false);
+            ClientUtils.sendDebugMessage(client, "/warp garden success");
         }
 
         return success;
@@ -182,9 +177,7 @@ public class CommandUtils {
         boolean success = waitForChatMessage(client, "Teleported you to Plot");
 
         if (success && client.player != null) {
-            client.player.displayClientMessage(
-                    Component.literal("§9[Debug] plottp success"),
-                    false);
+            ClientUtils.sendDebugMessage(client, "plottp success");
         }
 
         return success;

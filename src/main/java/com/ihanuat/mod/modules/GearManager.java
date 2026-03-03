@@ -105,7 +105,7 @@ public class GearManager {
 
         if (!wardrobeGuiDetected) {
             wardrobeGuiDetected = true;
-            client.player.displayClientMessage(Component.literal("§9[Debug] Wardrobe GUI detected"), false);
+            ClientUtils.sendDebugMessage(client, "Wardrobe GUI detected");
             wardrobeInteractionTime = System.currentTimeMillis();
         }
 
@@ -161,8 +161,7 @@ public class GearManager {
 
             if (itemName.contains("green_dye") || hoverName.contains("green dye") || itemName.contains("lime_dye")
                     || hoverName.contains("lime dye")) {
-                client.player.displayClientMessage(
-                        Component.literal("§9[Debug] Wardrobe swap successful"), false);
+                ClientUtils.sendDebugMessage(client, "Wardrobe swap successful");
                 trackedWardrobeSlot = targetWardrobeSlot;
                 isSwappingWardrobe = false;
                 client.player.closeContainer();
@@ -223,7 +222,7 @@ public class GearManager {
 
         if (!equipmentGuiDetected) {
             equipmentGuiDetected = true;
-            client.player.displayClientMessage(Component.literal("§9[Debug] Equipment GUI detected"), false);
+            ClientUtils.sendDebugMessage(client, "Equipment GUI detected");
             equipmentInteractionTime = System.currentTimeMillis();
         }
 
@@ -274,8 +273,7 @@ public class GearManager {
                 return;
             }
 
-            client.player.displayClientMessage(
-                    Component.literal("§9[Debug] Equipment swap successful"), false);
+            ClientUtils.sendDebugMessage(client, "Equipment swap successful");
             trackedIsPestGear = !swappingToFarmingGear;
             isSwappingEquipment = false;
             // Close the screen client-side immediately (no server round-trip needed).
