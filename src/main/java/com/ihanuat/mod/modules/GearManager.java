@@ -65,6 +65,10 @@ public class GearManager {
 
         targetWardrobeSlot = slot;
         isSwappingWardrobe = true;
+        if (isSwappingEquipment) {
+            isSwappingEquipment = false;
+            ClientUtils.sendDebugMessage(client, "§eInterrupted equipment swap for wardrobe priority.");
+        }
         wardrobeGuiDetected = false;
         wardrobeInteractionTime = 0;
         wardrobeInteractionStage = 0;
@@ -85,6 +89,10 @@ public class GearManager {
             return;
         targetWardrobeSlot = slot;
         isSwappingWardrobe = true;
+        if (isSwappingEquipment) {
+            isSwappingEquipment = false;
+            ClientUtils.sendDebugMessage(client, "§eInterrupted equipment swap for wardrobe priority.");
+        }
         wardrobeGuiDetected = false;
         wardrobeInteractionTime = 0;
         wardrobeInteractionStage = 0;
@@ -182,15 +190,14 @@ public class GearManager {
 
             client.player.displayClientMessage(Component.literal("§aWardrobe swap finished. Restarting farming..."),
                     true);
+            client.execute(() -> GearManager.swapToFarmingTool(client));
             new Thread(() -> {
                 try {
-                    ClientUtils.waitForGearAndGui(client);
+                    // Removed duplicate ClientUtils.waitForGearAndGui(client);
                     if (PestManager.isCleaningInProgress)
                         return;
-                    client.execute(() -> GearManager.swapToFarmingTool(client));
-                    Thread.sleep(250);
-                    com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
-                    com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
+
+                    finalResume(client);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -198,11 +205,60 @@ public class GearManager {
         }
     }
 
+    public static void finalResume(Minecraft client) {
+        if (PestManager.isCleaningInProgress)
+            return;
+
+        ClientUtils.waitForGearAndGui(client);
+        GearManager.swapToFarmingToolSync(client);
+
+        if (PestManager.isCleaningInProgress)
+            return;
+
+        client.execute(() -> {
+            if (PestManager.isCleaningInProgress)
+                return;
+            com.ihanuat.mod.MacroStateManager.setCurrentState(com.ihanuat.mod.MacroState.State.FARMING);
+            com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
+        });
+    }
+
     public static void ensureEquipment(Minecraft client, boolean toFarming) {
+        if (!MacroConfig.autoEquipment)
+            return;
+
+        // If called from a non-render thread, we can block/wait.
+        // If from render thread, we should defer.
+        if (Minecraft.getInstance().isSameThread()) {
+            if (isSwappingWardrobe) {
+                ClientUtils.sendDebugMessage(client, "§eEquipment swap deferred: Wardrobe busy.");
+                return;
+            }
+        } else {
+            try {
+                int timeout = 0;
+                boolean waited = false;
+                while (isSwappingWardrobe && timeout < 100) { // Max 5 second wait
+                    Thread.sleep(50);
+                    timeout++;
+                    waited = true;
+                }
+                if (isSwappingWardrobe) {
+                    ClientUtils.sendDebugMessage(client,
+                            "§c[GearManager] Auto-Equipment aborted: Wardrobe swap timed out.");
+                    return;
+                }
+                if (waited) {
+                    ClientUtils.sendDebugMessage(client, "§eWardrobe swap done! Triggering equipment swap");
+                }
+            } catch (InterruptedException ignored) {
+            }
+        }
+
         swappingToFarmingGear = toFarming;
-        isSwappingEquipment = true;
-        equipmentGuiDetected = false;
+        equipmentGuiDetected = false; // Reset GUI detection flag immediately
         equipmentInteractionTime = 0;
+        isSwappingEquipment = true;
         equipmentInteractionStage = 0;
         equipmentTargetIndex = 0;
         ClientUtils.sendCommand(client, "/equipment");
@@ -211,6 +267,12 @@ public class GearManager {
     public static void handleEquipmentMenu(Minecraft client, AbstractContainerScreen<?> screen) {
         if (!isSwappingEquipment)
             return;
+
+        if (isSwappingWardrobe) {
+            isSwappingEquipment = false;
+            ClientUtils.sendDebugMessage(client, "§eAborting equipment menu for wardrobe priority.");
+            return;
+        }
 
         long now = System.currentTimeMillis();
         if (now - equipmentInteractionTime < MacroConfig.getRandomizedDelay(MacroConfig.equipmentSwapDelay))
