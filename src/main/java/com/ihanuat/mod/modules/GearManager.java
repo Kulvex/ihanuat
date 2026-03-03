@@ -37,18 +37,26 @@ public class GearManager {
         wardrobeCleanupTicks = 0;
         trackedWardrobeSlot = -1;
         trackedIsPestGear = null;
+        wardrobeGuiDetected = false;
+        equipmentGuiDetected = false;
+    }
+
+    public static boolean wardrobeGuiDetected = false;
+    public static boolean equipmentGuiDetected = false;
+
+    public static void triggerPrepSwap(Minecraft client) {
         isHoldingRodUse = false;
     }
 
     public static void triggerWardrobeSwap(Minecraft client, int slot) {
         if (trackedWardrobeSlot == slot) {
-            ClientUtils.sendCommand(client, ".ez-stopscript");
+            com.ihanuat.mod.util.CommandUtils.stopScript(client, 0);
             new Thread(() -> {
                 try {
                     Thread.sleep(400);
                     client.execute(() -> GearManager.swapToFarmingTool(client));
                     Thread.sleep(250);
-                    ClientUtils.sendCommand(client, MacroConfig.getFullRestartCommand());
+                    com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
                 } catch (Exception ignored) {
                 }
             }).start();
@@ -57,14 +65,16 @@ public class GearManager {
 
         targetWardrobeSlot = slot;
         isSwappingWardrobe = true;
+        wardrobeGuiDetected = false;
         wardrobeInteractionTime = 0;
         wardrobeInteractionStage = 0;
         shouldRestartFarmingAfterSwap = true;
-        ClientUtils.sendCommand(client, ".ez-stopscript");
+        com.ihanuat.mod.util.CommandUtils.stopScript(client, 0);
         new Thread(() -> {
             try {
                 Thread.sleep(375);
                 client.execute(() -> ClientUtils.sendCommand(client, "/wardrobe"));
+                ClientUtils.waitForWardrobeGui(client);
             } catch (Exception ignored) {
             }
         }).start();
@@ -75,6 +85,7 @@ public class GearManager {
             return;
         targetWardrobeSlot = slot;
         isSwappingWardrobe = true;
+        wardrobeGuiDetected = false;
         wardrobeInteractionTime = 0;
         wardrobeInteractionStage = 0;
         ClientUtils.sendCommand(client, "/wardrobe");
@@ -88,9 +99,15 @@ public class GearManager {
         if (now - wardrobeInteractionTime < MacroConfig.getRandomizedDelay(MacroConfig.guiClickDelay))
             return;
 
-        String title = screen.getTitle().getString();
-        if (!title.contains("Wardrobe"))
+        String title = screen.getTitle().getString().toLowerCase();
+        if (!title.contains("wardrobe"))
             return;
+
+        if (!wardrobeGuiDetected) {
+            wardrobeGuiDetected = true;
+            ClientUtils.sendDebugMessage(client, "Wardrobe GUI detected");
+            wardrobeInteractionTime = System.currentTimeMillis();
+        }
 
         if (wardrobeInteractionStage == 0) {
             int slotIdx = 35 + targetWardrobeSlot;
@@ -131,10 +148,25 @@ public class GearManager {
             if (lastClickElapsed < 150)
                 return;
 
-            trackedWardrobeSlot = targetWardrobeSlot;
-            isSwappingWardrobe = false;
-            client.player.closeContainer();
-            handleWardrobeCompletion(client);
+            int slotIdx = 35 + targetWardrobeSlot;
+            if (slotIdx >= screen.getMenu().slots.size())
+                return;
+
+            ItemStack stack = screen.getMenu().slots.get(slotIdx).getItem();
+            if (stack.isEmpty())
+                return;
+
+            String itemName = stack.getItem().toString().toLowerCase();
+            String hoverName = stack.getHoverName().getString().toLowerCase();
+
+            if (itemName.contains("green_dye") || hoverName.contains("green dye") || itemName.contains("lime_dye")
+                    || hoverName.contains("lime dye")) {
+                ClientUtils.sendDebugMessage(client, "Wardrobe swap successful");
+                trackedWardrobeSlot = targetWardrobeSlot;
+                isSwappingWardrobe = false;
+                client.player.closeContainer();
+                handleWardrobeCompletion(client);
+            }
         }
     }
 
@@ -157,9 +189,8 @@ public class GearManager {
                         return;
                     client.execute(() -> GearManager.swapToFarmingTool(client));
                     Thread.sleep(250);
-                    ClientUtils.sendCommand(client, ".ez-stopscript");
-                    Thread.sleep(250);
-                    ClientUtils.sendCommand(client, MacroConfig.getFullRestartCommand());
+                    com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
+                    com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -170,6 +201,7 @@ public class GearManager {
     public static void ensureEquipment(Minecraft client, boolean toFarming) {
         swappingToFarmingGear = toFarming;
         isSwappingEquipment = true;
+        equipmentGuiDetected = false;
         equipmentInteractionTime = 0;
         equipmentInteractionStage = 0;
         equipmentTargetIndex = 0;
@@ -184,15 +216,64 @@ public class GearManager {
         if (now - equipmentInteractionTime < MacroConfig.getRandomizedDelay(MacroConfig.equipmentSwapDelay))
             return;
 
-        String title = screen.getTitle().getString();
-        if (!title.contains("Equipment"))
+        String title = screen.getTitle().getString().toLowerCase();
+        if (!title.contains("equipment"))
             return;
+
+        if (!equipmentGuiDetected) {
+            equipmentGuiDetected = true;
+            ClientUtils.sendDebugMessage(client, "Equipment GUI detected");
+            equipmentInteractionTime = System.currentTimeMillis();
+        }
 
         // Necklace, Cloak/Vest, Belt, Hand (Gloves/Bracelet/Gauntlet)
         int[] guiSlots = { 10, 19, 28, 37 };
         String[] keywords = { "necklace", "cloak|vest|cape", "belt", "gloves|bracelet|gauntlet" };
 
+        int totalSlots = screen.getMenu().slots.size();
+        int playerInvStart = totalSlots - 36;
+        ItemStack carried = client.player.containerMenu.getCarried();
+
         if (equipmentTargetIndex >= guiSlots.length) {
+            // Wait for inventory to be clear of target equipment
+            boolean targetRemaining = false;
+            for (int i = playerInvStart; i < totalSlots; i++) {
+                if (i >= screen.getMenu().slots.size())
+                    break;
+                Slot invSlot = screen.getMenu().slots.get(i);
+                if (invSlot != null && invSlot.hasItem()) {
+                    String invItemName = invSlot.getItem().getHoverName().getString().toLowerCase();
+                    boolean invIsFarming = invItemName.contains("lotus") || invItemName.contains("blossom")
+                            || invItemName.contains("zorro");
+                    boolean invIsPest = invItemName.contains("pest");
+                    boolean matchesTarget = swappingToFarmingGear ? invIsFarming : invIsPest;
+
+                    if (matchesTarget) {
+                        boolean isEquipmentType = false;
+                        for (String kwGroup : keywords) {
+                            for (String kw : kwGroup.split("\\|")) {
+                                if (invItemName.contains(kw)) {
+                                    isEquipmentType = true;
+                                    break;
+                                }
+                            }
+                            if (isEquipmentType)
+                                break;
+                        }
+
+                        if (isEquipmentType) {
+                            targetRemaining = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (targetRemaining) {
+                return;
+            }
+
+            ClientUtils.sendDebugMessage(client, "Equipment swap successful");
             trackedIsPestGear = !swappingToFarmingGear;
             isSwappingEquipment = false;
             // Close the screen client-side immediately (no server round-trip needed).
@@ -213,10 +294,6 @@ public class GearManager {
             }).start();
             return;
         }
-
-        int totalSlots = screen.getMenu().slots.size();
-        int playerInvStart = totalSlots - 36;
-        ItemStack carried = client.player.containerMenu.getCarried();
 
         // Stage 0: Verify if swap is needed and search for desired item in inventory
         if (equipmentInteractionStage == 0) {
