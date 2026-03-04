@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 
 public class VisitorManager {
     private static final Pattern VISITORS_PATTERN = Pattern.compile("Visitors:\\s*\\(?(\\d+)\\)?");
+    public static volatile long lastSequenceFinishTime = 0;
 
     public static int getVisitorCount(Minecraft client) {
         if (!MacroConfig.autoVisitor || client.level == null)
@@ -61,7 +62,7 @@ public class VisitorManager {
             return;
 
         int visitors = getVisitorCount(client);
-        if (visitors >= MacroConfig.visitorThreshold) {
+        if (visitors >= MacroConfig.visitorThreshold && (System.currentTimeMillis() - lastSequenceFinishTime > 10000)) {
             client.player.displayClientMessage(
                     Component.literal("\u00A7dVisitor Threshold Met (" + visitors + "). Redirecting to Visitors..."),
                     true);
@@ -84,6 +85,7 @@ public class VisitorManager {
             com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
             com.ihanuat.mod.util.CommandUtils.startScript(client, ".ez-startscript misc:visitor", 0);
             PestManager.isCleaningInProgress = false;
+            lastSequenceFinishTime = System.currentTimeMillis();
             return;
         }
 
@@ -110,5 +112,6 @@ public class VisitorManager {
         com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
         com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
         PestManager.isCleaningInProgress = false;
+        lastSequenceFinishTime = System.currentTimeMillis();
     }
 }

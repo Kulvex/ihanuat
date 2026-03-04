@@ -34,6 +34,7 @@ public class PestManager {
     public static volatile boolean isPrepSwapping = false;
     public static volatile boolean isBonusInactive = false;
     public static volatile boolean isReactivatingBonus = false;
+    public static volatile long lastSequenceFinishTime = 0;
 
     public static void reset() {
         isCleaningInProgress = false;
@@ -47,11 +48,15 @@ public class PestManager {
         flightStopTicks = 0;
         isPrepSwapping = false;
         isReactivatingBonus = false;
+        lastSequenceFinishTime = 0;
         currentPestSessionId++;
     }
 
     public static void checkTabListForPests(Minecraft client, MacroState.State currentState) {
         if (client.getConnection() == null || !com.ihanuat.mod.MacroStateManager.isMacroRunning())
+            return;
+
+        if (System.currentTimeMillis() - lastSequenceFinishTime < 10000)
             return;
 
         if (isCleaningInProgress) {
@@ -208,6 +213,7 @@ public class PestManager {
                     com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
                     com.ihanuat.mod.util.CommandUtils.startScript(client, ".ez-startscript misc:visitor", 0);
                     isCleaningInProgress = false;
+                    lastSequenceFinishTime = System.currentTimeMillis();
                     return;
                 }
 
@@ -281,6 +287,7 @@ public class PestManager {
                 com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
                 com.ihanuat.mod.util.CommandUtils.startScript(client, ".ez-startscript misc:visitor", 0);
                 isCleaningInProgress = false;
+                lastSequenceFinishTime = System.currentTimeMillis();
                 return;
             }
 
@@ -292,6 +299,7 @@ public class PestManager {
             prepSwappedForCurrentPestCycle = false; // Ensure flag is reset when returning
             com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
             isCleaningInProgress = false;
+            lastSequenceFinishTime = System.currentTimeMillis();
             com.ihanuat.mod.util.ClientUtils.sendDebugMessage(client,
                     "Pest cleaning sequence finished. Restarting farming...");
             com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
