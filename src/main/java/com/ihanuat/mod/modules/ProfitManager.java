@@ -1,6 +1,8 @@
 package com.ihanuat.mod.modules;
 
 import com.ihanuat.mod.MacroConfig;
+import com.ihanuat.mod.MacroState;
+import com.ihanuat.mod.MacroStateManager;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -9,6 +11,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.minecraft.client.Minecraft;
+import com.ihanuat.mod.util.ClientUtils;
 
 public class ProfitManager {
     private static final Map<String, Long> sessionCounts = new LinkedHashMap<>();
@@ -20,6 +24,7 @@ public class ProfitManager {
     private static long lastCultivatingValue = -1;
     private static String currentFarmedCrop = "Wheat";
     private static long lastBazaarFetchTime = 0;
+    private static long lastPurseBalance = -1;
 
     // Spray cost tracking: quantity is tracked separately from coins
     private static long spraySessionQuantity = 0;
@@ -72,7 +77,7 @@ public class ProfitManager {
     private static final Set<String> PETS_SET = Set.of("Epic Slug", "Legendary Slug", "Rat");
 
     private static final Set<String> MISC_DROPS_SET = Set.of("Cropie", "Squash", "Fermento", "Helianthus",
-            "Tool EXP Capsule", "Pet XP");
+            "Tool EXP Capsule", "Pet XP", "Purse");
 
     private static final Set<String> BASE_CROPS = Set.of(
             "Wheat", "Potato", "Carrot", "Melon Slice", "Pumpkin",
@@ -128,7 +133,8 @@ public class ProfitManager {
             Map.entry("Helianthus", 0.0), Map.entry("Tool EXP Capsule", 100000.0),
             // Pet XP (price per XP point, will be fetched)
             Map.entry("Pet XP", 0.0),
-            Map.entry("Pest Shard", 0.0));
+            Map.entry("Pest Shard", 0.0),
+            Map.entry("Purse", 1.0));
 
     private static final Map<String, String> BAZAAR_MAPPING = Map.ofEntries(
             Map.entry("Sunder VI Book", "ENCHANTMENT_SUNDER_6"),
@@ -162,6 +168,16 @@ public class ProfitManager {
             Pattern.CASE_INSENSITIVE);
 
     private static final Pattern STRIP_COLOR_PATTERN = Pattern.compile("(?i)§[0-9A-FK-OR]");
+
+    private static final Pattern BAZAAR_BUY_PATTERN = Pattern.compile(
+            "\\[Bazaar\\] Bought (\\d+)x (.+?) for [\\d,]+ coins!",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern SPRAY_PATTERN = Pattern.compile(
+            "SPRAYONATOR! You sprayed Plot - \\d+ with (.+?)(?:!|$)",
+            Pattern.CASE_INSENSITIVE);
+    private static long lastBazaarSprayBuyTime = 0;
+    private static boolean isTrackingVisitorRewards = false;
+    private static boolean copperSeenInRewards = false;
 
     public static void handleChatMessage(Component component) {
         String text = toLegacyText(component);
@@ -235,6 +251,80 @@ public class ProfitManager {
                 int count = (countStr != null) ? Integer.parseInt(countStr) : 1;
                 addDrop("Pest Shard", count);
             } catch (Exception ignored) {
+            }
+        }
+
+        Matcher bazaarMatcher = BAZAAR_BUY_PATTERN.matcher(plainText);
+        if (bazaarMatcher.find()) {
+            if (MacroStateManager.getCurrentState() == MacroState.State.VISITING) {
+                ClientUtils.sendDebugMessage(Minecraft.getInstance(), "Bazaar buy ignored (Visiting state)");
+                return;
+            }
+            try {
+                int count = Integer.parseInt(bazaarMatcher.group(1));
+                String itemName = bazaarMatcher.group(2).trim();
+                ClientUtils.sendDebugMessage(Minecraft.getInstance(),
+                        "Bazaar buy detected: " + count + "x " + itemName);
+                addDrop(itemName, -count);
+                lastBazaarSprayBuyTime = System.currentTimeMillis();
+            } catch (Exception ignored) {
+            }
+        }
+
+        // ── Visitor Rewards Tracking ──
+        if (plainText.equalsIgnoreCase("REWARDS")) {
+            isTrackingVisitorRewards = true;
+            copperSeenInRewards = false;
+            return;
+        }
+
+        if (isTrackingVisitorRewards) {
+            if (plainText.isEmpty()) {
+                isTrackingVisitorRewards = false;
+                return;
+            }
+
+            if (plainText.contains("Farming XP") || plainText.contains("Garden Experience")) {
+                return;
+            }
+
+            if (plainText.contains("Copper")) {
+                copperSeenInRewards = true;
+            }
+
+            if (copperSeenInRewards) {
+                // Parse reward line
+                Matcher m = Pattern.compile("^\\+?([\\d,.]+)[xX]?\\s+(.+)").matcher(plainText);
+                if (m.find()) {
+                    String item = m.group(2).trim();
+                    String countStr = m.group(1).replace(",", "");
+                    long count = 1;
+                    try {
+                        if (countStr.toLowerCase().endsWith("k")) {
+                            count = (long) (Double.parseDouble(countStr.substring(0, countStr.length() - 1)) * 1000);
+                        } else {
+                            count = Long.parseLong(countStr);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    addVisitorGain(item, count);
+                } else {
+                    addVisitorGain(plainText, 1);
+                }
+            }
+            return;
+        }
+
+        Matcher sprayMatcher = SPRAY_PATTERN.matcher(plainText);
+        if (sprayMatcher.find()) {
+            String baitName = sprayMatcher.group(1).trim();
+            long now = System.currentTimeMillis();
+            if (now - lastBazaarSprayBuyTime < 15000) {
+                ClientUtils.sendDebugMessage(Minecraft.getInstance(),
+                        "Sprayonator use ignored due to recent Bazaar buy.");
+            } else {
+                ClientUtils.sendDebugMessage(Minecraft.getInstance(), "Sprayonator use detected (" + baitName + ").");
+                addDrop(baitName, -1);
             }
         }
     }
@@ -327,11 +417,24 @@ public class ProfitManager {
     }
 
     public static void addVisitorGain(String itemName, long count) {
-        // Store directly — bypass addDrop's normalization to preserve [Visitor] prefix
-        if (com.ihanuat.mod.MacroStateManager.isMacroRunning()) {
-            sessionCounts.put(itemName, sessionCounts.getOrDefault(itemName, 0L) + count);
+        String cleanName = STRIP_COLOR_PATTERN.matcher(itemName).replaceAll("").replace("+", "").trim();
+        long multiplier = 1;
+        Matcher m = Pattern.compile("\\s+[xX](\\d+)$").matcher(cleanName);
+        if (m.find()) {
+            try {
+                multiplier = Long.parseLong(m.group(1));
+                cleanName = cleanName.substring(0, m.start()).trim();
+            } catch (Exception ignored) {
+            }
         }
-        lifetimeCounts.put(itemName, lifetimeCounts.getOrDefault(itemName, 0L) + count);
+
+        String key = cleanName.startsWith("[Visitor] ") ? cleanName : "[Visitor] " + cleanName;
+        long totalCount = count * multiplier;
+
+        if (com.ihanuat.mod.MacroStateManager.isMacroRunning()) {
+            sessionCounts.put(key, sessionCounts.getOrDefault(key, 0L) + totalCount);
+        }
+        lifetimeCounts.put(key, lifetimeCounts.getOrDefault(key, 0L) + totalCount);
         saveLifetime();
     }
 
@@ -504,6 +607,8 @@ public class ProfitManager {
     public static void reset() {
         sessionCounts.clear();
         PetXpTracker.reset();
+        lastBazaarSprayBuyTime = 0;
+        lastPurseBalance = -1;
     }
 
     public static void resetLifetime() {
@@ -550,20 +655,26 @@ public class ProfitManager {
     }
 
     public static double getItemPrice(String itemName) {
-        // Visitor cost: count IS the coin amount, so price = 1.0
-        if ("[Visitor] Visitor Cost".equals(itemName) || "[Spray] Sprayonator".equals(itemName)) {
-            return 1.0;
+        if (itemName.startsWith("[Visitor] ")) {
+            String realName = itemName.substring(10);
+            if ("Visitor Cost".equals(realName))
+                return 1.0;
+            if ("Copper".equals(realName)) {
+                double greenThumbPrice = bazaarPrices.getOrDefault("ENCHANTMENT_GREEN_THUMB_1", 0.0);
+                if (greenThumbPrice <= 0) {
+                    greenThumbPrice = TRACKED_ITEMS.getOrDefault("ENCHANTMENT_GREEN_THUMB_1", 0.0);
+                }
+                if (greenThumbPrice > 0) {
+                    return greenThumbPrice / 1500.0;
+                }
+                return 0.0;
+            }
+            return getItemPrice(realName); // Recursive call for the actual item price
         }
-        // Copper: value based on Green Thumb (1500 copper)
-        if ("[Visitor] Copper".equals(itemName)) {
-            double greenThumbPrice = bazaarPrices.getOrDefault("ENCHANTMENT_GREEN_THUMB_1", 0.0);
-            if (greenThumbPrice <= 0) {
-                greenThumbPrice = TRACKED_ITEMS.getOrDefault("ENCHANTMENT_GREEN_THUMB_1", 0.0);
-            }
-            if (greenThumbPrice > 0) {
-                return greenThumbPrice / 1500.0;
-            }
-            return 0.0;
+
+        // Visitor cost: count IS the coin amount, so price = 1.0
+        if ("[Spray] Sprayonator".equals(itemName) || "Purse".equals(itemName)) {
+            return 1.0;
         }
         double price = TRACKED_ITEMS.getOrDefault(itemName, 0.0);
         if (price == 0.0) {
@@ -656,19 +767,26 @@ public class ProfitManager {
                     }
                 }
                 lastCultivatingValue = newValue;
-
-                // Track Rose Dragon XP from tab list (runs every tick regardless)
-                PetXpTracker.update(client);
-
-                // Refresh bazaar prices every hour
-                long now = System.currentTimeMillis();
-                if (now - lastBazaarFetchTime > 3600000L) {
-                    fetchBazaarPrices();
-                }
-                return; // Found cultivating value, done for this tick
+            } else {
+                lastCultivatingValue = -1;
             }
+        } else {
+            lastCultivatingValue = -1;
         }
-        lastCultivatingValue = -1;
+
+        // 3. Track Purse
+        long currentPurse = ClientUtils.getPurse(client);
+        if (currentPurse != -1) {
+            if (lastPurseBalance != -1) {
+                if (currentPurse > lastPurseBalance) {
+                    long delta = currentPurse - lastPurseBalance;
+                    if (com.ihanuat.mod.MacroStateManager.getCurrentState() != MacroState.State.AUTOSELLING) {
+                        addDrop("Purse", delta);
+                    }
+                }
+            }
+            lastPurseBalance = currentPurse;
+        }
 
         // Track Pet XP from tab list
         PetXpTracker.update(client);
@@ -798,42 +916,51 @@ public class ProfitManager {
             final long TOTAL_XP = table[info.maxLevel];
 
             try {
-                // ── Level 1 lowest BIN ───────────────────────────────────────────
+                // ── Level 1 ─────────────────────────────────────────────────────
                 long lvl1Price = 0;
+                String url1 = "https://sky.coflnet.com/api/auctions/tag/" + info.tag
+                        + "/active/overview?query%5BRarity%5D=" + info.rarity.name()
+                        + "&query%5BPetLevel%5D=1";
+
                 java.net.http.HttpRequest req1 = java.net.http.HttpRequest.newBuilder()
-                        .uri(java.net.URI.create("https://sky.coflnet.com/api/item/price/" + info.tag + "/bin"))
+                        .uri(java.net.URI.create(url1))
                         .GET().build();
                 java.net.http.HttpResponse<String> resp1 = http.send(req1,
                         java.net.http.HttpResponse.BodyHandlers.ofString());
+
                 if (resp1.statusCode() == 200) {
-                    BinResponse bin = GSON.fromJson(resp1.body(), BinResponse.class);
-                    if (bin != null && bin.lowest > 0) {
-                        lvl1Price = (long) bin.lowest;
+                    java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<java.util.List<OverviewEntry>>() {
+                    }.getType();
+                    java.util.List<OverviewEntry> listings = GSON.fromJson(resp1.body(), listType);
+                    if (listings != null) {
+                        for (OverviewEntry entry : listings) {
+                            if (entry.price > 0 && (lvl1Price == 0 || entry.price < lvl1Price)) {
+                                lvl1Price = entry.price;
+                            }
+                        }
                     }
                 }
 
-                // ── Max Level lowest BIN ───────────────────────────────────────────────
+                // ── Max Level ────────────────────────────────────────────────────
                 long lvlMaxPrice = 0;
-                String filter = java.net.URLEncoder.encode("[Lvl " + info.maxLevel + "]", "UTF-8");
-                java.net.http.HttpRequest req2 = java.net.http.HttpRequest.newBuilder()
-                        .uri(java.net.URI.create(
-                                "https://sky.coflnet.com/api/auctions/tag/" + info.tag + "/active/bin"
-                                        + "?ItemNameContains=" + filter))
+                String urlMax = "https://sky.coflnet.com/api/auctions/tag/" + info.tag
+                        + "/active/overview?query%5BRarity%5D=" + info.rarity.name()
+                        + "&query%5BPetLevel%5D=" + info.maxLevel;
+
+                java.net.http.HttpRequest reqMax = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(urlMax))
                         .GET().build();
-                java.net.http.HttpResponse<String> resp2 = http.send(req2,
+                java.net.http.HttpResponse<String> respMax = http.send(reqMax,
                         java.net.http.HttpResponse.BodyHandlers.ofString());
-                if (resp2.statusCode() == 200) {
-                    java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<java.util.List<ActiveBinEntry>>() {
+
+                if (respMax.statusCode() == 200) {
+                    java.lang.reflect.Type listType = new com.google.gson.reflect.TypeToken<java.util.List<OverviewEntry>>() {
                     }.getType();
-                    java.util.List<ActiveBinEntry> listings = GSON.fromJson(resp2.body(), listType);
+                    java.util.List<OverviewEntry> listings = GSON.fromJson(respMax.body(), listType);
                     if (listings != null) {
-                        for (ActiveBinEntry listing : listings) {
-                            if (listing.itemName == null || !listing.itemName.contains("[Lvl " + info.maxLevel + "]"))
-                                continue;
-                            if (listing.startingBid > 0) {
-                                if (lvlMaxPrice == 0 || listing.startingBid < lvlMaxPrice) {
-                                    lvlMaxPrice = listing.startingBid;
-                                }
+                        for (OverviewEntry entry : listings) {
+                            if (entry.price > 0 && (lvlMaxPrice == 0 || entry.price < lvlMaxPrice)) {
+                                lvlMaxPrice = entry.price;
                             }
                         }
                     }
@@ -896,14 +1023,9 @@ public class ProfitManager {
         double buy;
     }
 
-    /** Response from /api/item/price/{tag}/bin */
-    private static class BinResponse {
-        double lowest;
-    }
-
-    /** One entry from /api/auctions/tag/{tag}/active/bin */
-    private static class ActiveBinEntry {
-        long startingBid;
-        String itemName; // e.g. "[Lvl 200] Rose Dragon"
+    /** One entry from /api/auctions/tag/{tag}/active/overview */
+    private static class OverviewEntry {
+        long price;
+        String uuid;
     }
 }

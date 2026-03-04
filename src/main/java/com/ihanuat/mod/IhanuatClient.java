@@ -202,6 +202,20 @@ public class IhanuatClient implements ClientModInitializer {
                     return;
                 }
 
+                if (lowerText.contains("autosell") && lowerText.contains("script activated")) {
+                    MacroStateManager.setCurrentState(MacroState.State.AUTOSELLING);
+                    return;
+                }
+
+                if (lowerText.contains("autosell") && lowerText.contains("script stopped")) {
+                    if (MacroStateManager.getCurrentState() == MacroState.State.AUTOSELLING) {
+                        MacroStateManager.setCurrentState(MacroState.State.FARMING); // Fallback to farming or whatever
+                                                                                     // was before? User didn't specify,
+                                                                                     // but usually it's farming.
+                    }
+                    return;
+                }
+
                 if (text.contains("You were spawned in Limbo.") || text
                         .contains("A disconnect occurred in your connection, so you were put in the SkyBlock Lobby!")) {
                     if (MacroStateManager.getCurrentState() != MacroState.State.OFF
@@ -261,11 +275,18 @@ public class IhanuatClient implements ClientModInitializer {
                             Matcher m = p.matcher(plainText);
                             if (m.find()) {
                                 String plot = m.group(1);
-                                if (MacroConfig.showDebug) {
-                                    ClientUtils.sendDebugMessage(Minecraft.getInstance(),
-                                            "Chat pest trigger matched plot: " + plot);
+                                if (MacroConfig.pestChatTriggerDelay > 0) {
+                                    new Thread(() -> {
+                                        try {
+                                            Thread.sleep(MacroConfig.pestChatTriggerDelay);
+                                            PestManager.startCleaningSequence(Minecraft.getInstance(), plot);
+                                        } catch (InterruptedException e) {
+                                            e.printStackTrace();
+                                        }
+                                    }).start();
+                                } else {
+                                    PestManager.startCleaningSequence(Minecraft.getInstance(), plot);
                                 }
-                                PestManager.startCleaningSequence(Minecraft.getInstance(), plot);
                             } else if (MacroConfig.showDebug) {
                                 ClientUtils.sendDebugMessage(Minecraft.getInstance(),
                                         "Chat pest trigger failed regex on: " + plainText);
@@ -274,8 +295,15 @@ public class IhanuatClient implements ClientModInitializer {
                     }
                 }
 
-                if (MacroStateManager.getCurrentState() == MacroState.State.CLEANING && lowerText.contains("visitor")
-                        && lowerText.contains("finished") && !text.contains("sequence complete")) {
+                if ((MacroStateManager.getCurrentState() == MacroState.State.VISITING
+                        || MacroStateManager.getCurrentState() == MacroState.State.CLEANING)
+                        && lowerText.contains("visitor") && lowerText.contains("script")
+                        && (lowerText.contains("finished") || lowerText.contains("stopped"))
+                        && !text.contains("sequence complete")
+                        && (System.currentTimeMillis() - VisitorManager.visitingStartedAt > 5000)) {
+                    ClientUtils.sendDebugMessage(Minecraft.getInstance(),
+                            "Visitor macro completion detected. Time since start: "
+                                    + (System.currentTimeMillis() - VisitorManager.visitingStartedAt) + "ms");
                     VisitorManager.handleVisitorScriptFinished(Minecraft.getInstance());
                 }
 

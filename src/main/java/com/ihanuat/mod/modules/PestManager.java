@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 
 import com.ihanuat.mod.MacroConfig;
 import com.ihanuat.mod.MacroState;
+import com.ihanuat.mod.MacroStateManager;
 import com.ihanuat.mod.mixin.AccessorInventory;
 import com.ihanuat.mod.util.ClientUtils;
 
@@ -34,6 +35,8 @@ public class PestManager {
     public static volatile boolean isPrepSwapping = false;
     public static volatile boolean isBonusInactive = false;
     public static volatile boolean isReactivatingBonus = false;
+    private static long lastCleaningFinishedTime = 0;
+    private static boolean wasInCooldown = false;
 
     public static void reset() {
         isCleaningInProgress = false;
@@ -47,12 +50,24 @@ public class PestManager {
         flightStopTicks = 0;
         isPrepSwapping = false;
         isReactivatingBonus = false;
+        lastCleaningFinishedTime = 0;
+        wasInCooldown = false;
         currentPestSessionId++;
     }
 
     public static void checkTabListForPests(Minecraft client, MacroState.State currentState) {
-        if (client.getConnection() == null || !com.ihanuat.mod.MacroStateManager.isMacroRunning())
+        if (client.getConnection() == null || !MacroStateManager.isMacroRunning())
             return;
+
+        long timeSinceFinished = System.currentTimeMillis() - lastCleaningFinishedTime;
+        if (timeSinceFinished < 10000) {
+            return;
+        } else if (wasInCooldown) {
+            wasInCooldown = false;
+            if (client.player != null) {
+                ClientUtils.sendDebugMessage(client, "Pest cleaner cooldown finished.");
+            }
+        }
 
         if (isCleaningInProgress) {
             // Only allow re-entry if we've been in CLEANING state for a long time without
@@ -205,17 +220,24 @@ public class PestManager {
                     }
 
                     ClientUtils.waitForGearAndGui(client);
+                    MacroStateManager.setCurrentState(MacroState.State.VISITING);
+                    VisitorManager.visitingStartedAt = System.currentTimeMillis();
                     com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
                     com.ihanuat.mod.util.CommandUtils.startScript(client, ".ez-startscript misc:visitor", 0);
                     isCleaningInProgress = false;
+                    lastCleaningFinishedTime = System.currentTimeMillis();
+                    wasInCooldown = true;
+                    client.player.displayClientMessage(
+                            Component.literal("§ePest cleaner finished (visitors). Starting 10s cooldown..."), false);
                     return;
                 }
 
                 Thread.sleep(150);
+                ClientUtils.sendDebugMessage(client, "Warping to garden (PestManager)...");
                 com.ihanuat.mod.util.CommandUtils.warpGarden(client);
                 Thread.sleep(250);
-
                 isReturningFromPestVisitor = true;
+                ClientUtils.sendDebugMessage(client, "Finalizing return to farm (PestManager)...");
                 finalizeReturnToFarm(client);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -292,6 +314,11 @@ public class PestManager {
             prepSwappedForCurrentPestCycle = false; // Ensure flag is reset when returning
             com.ihanuat.mod.util.CommandUtils.stopScript(client, 250);
             isCleaningInProgress = false;
+            lastCleaningFinishedTime = System.currentTimeMillis();
+            wasInCooldown = true;
+            if (client.player != null) {
+                ClientUtils.sendDebugMessage(client, "Pest cleaner finished. Starting 10s cooldown...");
+            }
             com.ihanuat.mod.util.ClientUtils.sendDebugMessage(client,
                     "Pest cleaning sequence finished. Restarting farming...");
             com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
@@ -306,8 +333,7 @@ public class PestManager {
     private static void triggerPrepSwap(Minecraft client) {
         prepSwappedForCurrentPestCycle = true;
         isPrepSwapping = true;
-        client.player.displayClientMessage(Component.literal("\u00A7ePest cooldown detected. Triggering prep-swap..."),
-                true);
+        ClientUtils.sendDebugMessage(client, "Pest cooldown detected. Triggering prep-swap...");
         new Thread(() -> {
             try {
                 com.ihanuat.mod.util.CommandUtils.stopScript(client, 375);
@@ -434,7 +460,6 @@ public class PestManager {
                     client.player.displayClientMessage(
                             Component.literal("§dBonus is INACTIVE! Triggering Phillip reactivation..."), true);
                     isReactivatingBonus = true;
-                    ProfitManager.startSprayPhase();
                     com.ihanuat.mod.util.CommandUtils.startScript(client, ".ez-startscript misc:pestCleaner", 0);
                     return;
                 }
@@ -555,7 +580,6 @@ public class PestManager {
                     // Trigger pest cleaning sequence immediately
                     com.ihanuat.mod.util.CommandUtils.stopScript(client, 50); // Minimal delay
                     GearManager.swapToFarmingToolSync(client);
-                    ProfitManager.startSprayPhase();
                     com.ihanuat.mod.util.CommandUtils.startScript(client, ".ez-startscript misc:pestCleaner", 0);
                 } catch (InterruptedException ignored) {
                 }
@@ -582,7 +606,6 @@ public class PestManager {
                 try {
                     com.ihanuat.mod.util.CommandUtils.stopScript(client, MacroConfig.getRandomizedDelay(250));
                     com.ihanuat.mod.util.CommandUtils.plotTp(client, currentInfestedPlot);
-                    ProfitManager.startSprayPhase();
                     com.ihanuat.mod.util.CommandUtils.startScript(client, ".ez-startscript misc:pestCleaner", 250);
                 } catch (Exception e) {
                     e.printStackTrace();
