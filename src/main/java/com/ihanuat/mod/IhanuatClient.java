@@ -216,11 +216,32 @@ public class IhanuatClient implements ClientModInitializer {
 
                 if (text.contains("Pest Cleaner") && text.contains("Finished")) {
                     if (MacroStateManager.getCurrentState() == MacroState.State.CLEANING) {
+                        ProfitManager.stopSprayPhase();
                         PestManager.handlePestCleaningFinished(Minecraft.getInstance());
                     }
                 }
 
-                String plainText = text.replaceAll("(?i)\u00A7.", "");
+                String plainText = text.replaceAll("(?i)[\u00A7&][0-9a-fk-or]", "");
+
+                // Track bazaar buys during pest cleaner spray phase
+                if (ProfitManager.isSprayPhaseActive && plainText.contains("[Bazaar]")
+                        && plainText.contains("Bought")) {
+                    java.util.regex.Matcher bazaarMatcher = java.util.regex.Pattern.compile(
+                            "\\[Bazaar\\]\\s*Bought\\s+(\\d+)x\\s+.+?for\\s+([\\d,]+)\\s+coins",
+                            java.util.regex.Pattern.CASE_INSENSITIVE).matcher(plainText);
+                    if (bazaarMatcher.find()) {
+                        try {
+                            int qty = Integer.parseInt(bazaarMatcher.group(1));
+                            long coins = Long.parseLong(bazaarMatcher.group(2).replace(",", ""));
+                            ProfitManager.addSprayCost(qty, coins);
+                            if (MacroConfig.showDebug) {
+                                ClientUtils.sendDebugMessage(Minecraft.getInstance(),
+                                        "Spray buy detected: " + qty + " items for " + coins + " coins");
+                            }
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                }
 
                 // Debug for ANY message containing "YUCK" or "Plot" for diagnostic purposes
                 if (lowerText.contains("yuck") && MacroConfig.showDebug) {

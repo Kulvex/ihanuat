@@ -165,10 +165,6 @@ public class VisitorManager {
         if (!name.contains("Accept Offer"))
             return;
 
-        client.player.displayClientMessage(
-                Component.literal("\u00A7d[Ihanuat] \u00A77Parsing visitor offer from \u00A7e" + title + "\u00A77..."),
-                false);
-
         VisitorOffer offer = new VisitorOffer();
         offer.visitorName = title;
         StringBuilder costBreakdown = new StringBuilder("\u00A7d[Ihanuat] \u00A77Costs: ");
@@ -183,17 +179,10 @@ public class VisitorManager {
         boolean parsingRequirements = false;
         boolean parsingRewards = false;
 
-        client.player.displayClientMessage(
-                Component.literal("\u00A7d[Ihanuat] \u00A77Lore lines: " + lore.size()), false);
-
         for (Component line : lore) {
             String text = line.getString().replaceAll("\u00A7[0-9a-fk-or]", "").trim();
             if (text.isEmpty())
                 continue;
-
-            // Debug: show each lore line
-            client.player.displayClientMessage(
-                    Component.literal("\u00A78  > " + text), false);
 
             if (text.contains("Items Required:")) {
                 parsingRequirements = true;
@@ -215,18 +204,6 @@ public class VisitorManager {
 
         if (offer.totalCost > 0 || !offer.rewards.isEmpty()) {
             pendingOffer = offer;
-            client.player.displayClientMessage(Component.literal(costBreakdown.toString()), false);
-            String rewardList = "";
-            for (VisitorOffer.Reward r : offer.rewards) {
-                rewardList += r.count + "x " + r.name + ", ";
-            }
-            client.player.displayClientMessage(Component.literal(
-                    "\u00A7d[Ihanuat] \u00A7fTotal Cost: \u00A7c-" + formatPrice(offer.totalCost)
-                            + " \u00A7fRewards: \u00A7a" + rewardList),
-                    false);
-        } else {
-            client.player.displayClientMessage(
-                    Component.literal("\u00A7d[Ihanuat] \u00A7cNo costs or rewards parsed from this offer."), false);
         }
     }
 
@@ -254,14 +231,8 @@ public class VisitorManager {
             itemName = text.trim();
         }
 
-        // Resolve item ID via NBT or Cofl API
         String id = resolveId(itemName, stack);
         double price = ProfitManager.getItemPrice(id != null ? id : itemName);
-
-        client.player.displayClientMessage(
-                Component.literal(
-                        "\u00A78    Cost: " + count + "x " + itemName + " (ID=" + id + ") price=" + price),
-                false);
 
         if (price > 0) {
             long total = (long) (price * count);
@@ -331,53 +302,18 @@ public class VisitorManager {
         return ProfitManager.fetchIdByName(name);
     }
 
-    // ── Offer Lifecycle ──
-
     public static void onOfferAccepted(String visitorName) {
-        Minecraft client = Minecraft.getInstance();
         if (pendingOffer != null) {
             String cleanPending = pendingOffer.visitorName.replaceAll("(?i)\u00A7[0-9a-fk-or]", "").trim();
             String cleanAccepted = visitorName.replaceAll("(?i)\u00A7[0-9a-fk-or]", "").trim();
 
-            if (client.player != null) {
-                client.player.displayClientMessage(Component.literal(
-                        "\u00A7d[Ihanuat] \u00A77Matching: pending=\"" + cleanPending + "\" vs accepted=\""
-                                + cleanAccepted + "\""),
-                        false);
-            }
-
             // Lenient matching: "Moby" should match "Moby (RARE)"
             if (cleanAccepted.startsWith(cleanPending) || cleanPending.startsWith(cleanAccepted)) {
                 ProfitManager.addVisitorCost(pendingOffer.totalCost);
-                StringBuilder rewardMsg = new StringBuilder("\u00A7d[Ihanuat] \u00A7aRewards committed: ");
                 for (VisitorOffer.Reward r : pendingOffer.rewards) {
                     ProfitManager.addVisitorGain("[Visitor] " + r.name, r.count);
-                    rewardMsg.append("\u00A7e").append(r.count).append("x ").append(r.name).append("\u00A7a, ");
-                }
-
-                if (client.player != null) {
-                    client.player.displayClientMessage(Component.literal(
-                            "\u00A7d[Ihanuat] \u00A7aVisitor Deal Committed! \u00A7eCost: \u00A7c-"
-                                    + formatPrice(pendingOffer.totalCost)),
-                            false);
-                    client.player.displayClientMessage(Component.literal(rewardMsg.toString()), false);
                 }
                 pendingOffer = null;
-            } else {
-                if (client.player != null) {
-                    client.player.displayClientMessage(Component.literal(
-                            "\u00A7d[Ihanuat] \u00A7cOffer match failed! Pending: \"" + cleanPending
-                                    + "\" vs Chat: \"" + cleanAccepted + "\""),
-                            false);
-                }
-            }
-        } else {
-            if (client.player != null) {
-                client.player.displayClientMessage(
-                        Component.literal(
-                                "\u00A7d[Ihanuat] \u00A7eVisitor accepted (\u00A7f" + visitorName
-                                        + "\u00A7e) \u2014 no pending offer to commit."),
-                        false);
             }
         }
     }

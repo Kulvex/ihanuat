@@ -27,11 +27,15 @@ public class ProfitManager {
     public static volatile boolean isSprayPhaseActive = false;
 
     public static void startSprayPhase() {
-        isSprayPhaseActive = true;
+        if (!isSprayPhaseActive) {
+            isSprayPhaseActive = true;
+        }
     }
 
     public static void stopSprayPhase() {
-        isSprayPhaseActive = false;
+        if (isSprayPhaseActive) {
+            isSprayPhaseActive = false;
+        }
     }
 
     private static final java.io.File LIFETIME_FILE = net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir()
@@ -62,7 +66,8 @@ public class ProfitManager {
             "Pesterminator I Book", "Squeaky Toy", "Squeaky Mousemat",
             "Fire in a Bottle", "Vermin Vaporizer Chip", "Mantid Claw",
             "Overclocker 3000", "Vinyl",
-            "Dung", "Honey Jar", "Plant Matter", "Tasty Cheese", "Compost", "Jelly");
+            "Dung", "Honey Jar", "Plant Matter", "Tasty Cheese", "Compost", "Jelly",
+            "Pest Shard");
 
     private static final Set<String> PETS_SET = Set.of("Epic Slug", "Legendary Slug", "Rat");
 
@@ -122,7 +127,8 @@ public class ProfitManager {
             Map.entry("Cropie", 25000.0), Map.entry("Squash", 75000.0), Map.entry("Fermento", 250000.0),
             Map.entry("Helianthus", 0.0), Map.entry("Tool EXP Capsule", 100000.0),
             // Pet XP (price per XP point, will be fetched)
-            Map.entry("Pet XP", 0.0));
+            Map.entry("Pet XP", 0.0),
+            Map.entry("Pest Shard", 0.0));
 
     private static final Map<String, String> BAZAAR_MAPPING = Map.ofEntries(
             Map.entry("Sunder VI Book", "ENCHANTMENT_SUNDER_6"),
@@ -135,7 +141,8 @@ public class ProfitManager {
             Map.entry("Jelly", "JELLY"),
             Map.entry("Helianthus", "HELIANTHUS"),
             Map.entry("Vermin Vaporizer Chip", "VERMIN_VAPORIZER_GARDEN_CHIP"),
-            Map.entry("ENCHANTMENT_GREEN_THUMB_1", "ENCHANTMENT_GREEN_THUMB_1"));
+            Map.entry("ENCHANTMENT_GREEN_THUMB_1", "ENCHANTMENT_GREEN_THUMB_1"),
+            Map.entry("Pest Shard", "SHARD_PEST"));
 
     private static final Pattern PEST_PATTERN = Pattern.compile("received\\s+(\\d+)x\\s+(.+?)\\s+for\\s+killing",
             Pattern.CASE_INSENSITIVE);
@@ -149,6 +156,9 @@ public class ProfitManager {
             "RARE CROP!\\s+(.+?)(?=\\s*(?:§[0-9a-fk-or])*\\s*[\\(!]|$)", Pattern.CASE_INSENSITIVE);
     private static final Pattern OVERFLOW_DROP_PATTERN = Pattern.compile(
             "OVERFLOW!\\s+.*?\\s+has\\s+just\\s+dropped\\s+(?:an?\\s+)?(?:(\\d+)x\\s+)?(.+?)(?=\\s*\\(!|!|$)",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern PEST_SHARD_PATTERN = Pattern.compile(
+            "charmed\\s+a\\s+Pest\\s+and\\s+captured\\s+(?:its\\s+Shard|(\\d+)\\s+Shards)",
             Pattern.CASE_INSENSITIVE);
 
     private static final Pattern STRIP_COLOR_PATTERN = Pattern.compile("(?i)§[0-9A-FK-OR]");
@@ -214,6 +224,16 @@ public class ProfitManager {
                 int count = (countStr != null) ? Integer.parseInt(countStr) : 1;
                 String itemName = rareMatcher.group(2).trim();
                 addDrop(itemName, count);
+            } catch (Exception ignored) {
+            }
+        }
+
+        Matcher shardMatcher = PEST_SHARD_PATTERN.matcher(plainText);
+        if (shardMatcher.find()) {
+            try {
+                String countStr = shardMatcher.group(1);
+                int count = (countStr != null) ? Integer.parseInt(countStr) : 1;
+                addDrop("Pest Shard", count);
             } catch (Exception ignored) {
             }
         }
