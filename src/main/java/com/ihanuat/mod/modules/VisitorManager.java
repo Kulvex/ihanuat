@@ -34,6 +34,18 @@ public class VisitorManager {
         if (!MacroConfig.autoVisitor || client.level == null)
             return 0;
 
+        if (!client.isSameThread()) {
+            java.util.concurrent.CompletableFuture<Integer> future = new java.util.concurrent.CompletableFuture<>();
+            client.execute(() -> {
+                future.complete(getVisitorCount(client));
+            });
+            try {
+                return future.get(1, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+
         try {
             if (client.getConnection() != null) {
                 java.util.Collection<net.minecraft.client.multiplayer.PlayerInfo> players = client.getConnection()
