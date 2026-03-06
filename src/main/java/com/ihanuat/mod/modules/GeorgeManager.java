@@ -231,12 +231,11 @@ public class GeorgeManager {
             new Thread(() -> {
                 try {
                     com.ihanuat.mod.util.ClientUtils.waitForGearAndGui(client);
-                    client.execute(() -> {
-                        GearManager.swapToFarmingTool(client);
-                        ClientUtils.sendDebugMessage(client,
-                                "Starting farming script after George sell: " + MacroConfig.getFullRestartCommand());
-                        com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
-                    });
+                    client.execute(() -> GearManager.swapToFarmingTool(client));
+                    Thread.sleep(150);
+                    ClientUtils.sendDebugMessage(client,
+                            "Starting farming script after George sell: " + MacroConfig.getFullRestartCommand());
+                    com.ihanuat.mod.util.CommandUtils.startScript(client, MacroConfig.getFullRestartCommand(), 0);
                 } catch (Exception ignored) {
                 }
             }).start();
