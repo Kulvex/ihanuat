@@ -1,21 +1,22 @@
 package com.ihanuat.mod.modules;
 
+import java.util.Random;
+
 import com.ihanuat.mod.MacroConfig;
 import com.ihanuat.mod.MacroState;
 import com.ihanuat.mod.MacroStateManager;
 import com.ihanuat.mod.ReconnectScheduler;
-import com.ihanuat.mod.util.ClientUtils;
-import net.minecraft.client.Minecraft;
 import com.ihanuat.mod.gui.DynamicRestScreen;
-import net.minecraft.network.chat.Component;
+import com.ihanuat.mod.util.ClientUtils;
 
-import java.util.Random;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 /**
  * Implements the Dynamic Rest feature.
  *
  * Flow:
- * 1. While in FARMING state, the timer is shown in the action bar (countdown).
+ * 1. Timer counts down only while in FARMING state.
  * 2. When the timer expires, a staged shutdown begins (still gated on FARMING):
  * Stage 0 — send /setspawn, stop the macro script, force-release keys.
  * Stage 1 — disconnect from the server (intentional) and schedule reconnect
@@ -54,7 +55,7 @@ public class DynamicRestManager {
         }
         long baseMs = MacroConfig.restScriptingTime * 60L * 1000L;
         long offsetMs = MacroConfig.restScriptingTimeOffset * 60L * 1000L;
-        long randomOffsetMs = (offsetMs > 0) ? (long) (new java.util.Random().nextDouble() * offsetMs) : 0;
+        long randomOffsetMs = (offsetMs > 0) ? (long) (new Random().nextDouble() * offsetMs) : 0;
         scheduledDurationMs = baseMs + randomOffsetMs;
         nextRestTriggerMs = System.currentTimeMillis() + scheduledDurationMs;
         lastTimeUpdate = System.currentTimeMillis();
@@ -105,16 +106,12 @@ public class DynamicRestManager {
 
         MacroState.State currentState = MacroStateManager.getCurrentState();
         boolean isFarming = currentState == MacroState.State.FARMING;
-        boolean isCleaning = currentState == MacroState.State.CLEANING;
         long now = System.currentTimeMillis();
 
         // === Timer Logic ===
         if (nextRestTriggerMs > 0 && !restSequencePending) {
-            if (isFarming || isCleaning) {
-                // Ticking state: check if we should trigger
-                long remaining = nextRestTriggerMs - now;
-                if (remaining <= 0 && isFarming) {
-                    // Only trigger shutdown sequence once we are actively farming
+            if (isFarming) {
+                if (now >= nextRestTriggerMs) {
                     restSequencePending = true;
                     restSequenceStage = 0;
                     nextStageActionTime = now;
@@ -125,8 +122,7 @@ public class DynamicRestManager {
                     }
                 }
             } else {
-                // Paused state (OFF, RECOVERING): shift the trigger forward to pause the
-                // countdown
+                // Pause countdown when not farming by moving trigger forward by the elapsed gap.
                 if (lastTimeUpdate != 0) {
                     long gap = now - lastTimeUpdate;
                     if (gap > 0) {
@@ -176,7 +172,7 @@ public class DynamicRestManager {
                 // Disconnect and schedule the reconnect after the break duration
                 long baseSecs = MacroConfig.restBreakTime * 60L;
                 long offsetSecs = MacroConfig.restBreakTimeOffset * 60L;
-                long randomOffsetSecs = (offsetSecs > 0) ? (long) (new java.util.Random().nextDouble() * offsetSecs)
+                long randomOffsetSecs = (offsetSecs > 0) ? (long) (new Random().nextDouble() * offsetSecs)
                         : 0;
                 long breakSeconds = baseSecs + randomOffsetSecs;
 
