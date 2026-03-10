@@ -27,11 +27,26 @@ public class PestCleaningSequencer {
 
         MacroWorkerThread.getInstance().submit("CleaningSequence-" + plot, () -> {
             try {
-                com.ihanuat.mod.util.CommandUtils.setSpawn(client);
-                if (MacroWorkerThread.shouldAbortTask(client))
+                // Retry /setspawn up to 3 times to ensure it's confirmed before AOTV
+                boolean spawnSet = false;
+                for (int attempt = 1; attempt <= 3; attempt++) {
+                    if (MacroWorkerThread.shouldAbortTask(client))
+                        return;
+                    spawnSet = com.ihanuat.mod.util.CommandUtils.setSpawn(client);
+                    if (spawnSet)
+                        break;
+                    ClientUtils.sendDebugMessage(client,
+                            "setSpawn attempt " + attempt + " timed out, retrying...");
+                }
+                if (!spawnSet) {
+                    client.player.displayClientMessage(
+                            net.minecraft.network.chat.Component.literal(
+                                    "§c[Ihanuat] /setspawn failed after 3 attempts — aborting pest cleaning to prevent roof spawn."),
+                            false);
+                    PestManager.isCleaningInProgress = false;
+                    com.ihanuat.mod.MacroStateManager.setCurrentState(com.ihanuat.mod.MacroState.State.FARMING);
                     return;
-                // sleep no longer needed since we use CommandUtils.setSpawn now
-                // MacroWorkerThread.sleep(850);
+                }
                 if (MacroWorkerThread.shouldAbortTask(client))
                     return;
                 if (sessionId != PestManager.currentPestSessionId)
@@ -85,7 +100,8 @@ public class PestCleaningSequencer {
                         true);
                 client.execute(() -> GearManager.ensureWardrobeSlot(client, targetSlot));
 
-                // client.execute is async; wait for swap state to actually start so later waits are not skipped.
+                // client.execute is async; wait for swap state to actually start so later waits
+                // are not skipped.
                 long wardrobeStartWait = System.currentTimeMillis();
                 while (!WardrobeManager.isSwappingWardrobe && System.currentTimeMillis() - wardrobeStartWait < 2000) {
                     if (MacroWorkerThread.shouldAbortTask(client))
@@ -158,9 +174,6 @@ public class PestCleaningSequencer {
     private static void startPestCleanerScript(Minecraft client, String currentInfestedPlot) {
         ClientUtils.sendDebugMessage(client, "Ready to start pest cleaner");
         com.ihanuat.mod.util.CommandUtils.stopScript(client, 50);
-        GearManager.swapToFarmingToolSync(client);
-        if (MacroWorkerThread.shouldAbortTask(client))
-            return;
 
         ClientUtils.sendDebugMessage(client, "Starting pest cleaner script for plot " + currentInfestedPlot);
         if (MacroConfig.autoRodPestSpawn) {
