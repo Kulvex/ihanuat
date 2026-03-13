@@ -621,8 +621,10 @@ public class IhanuatClient implements ClientModInitializer {
 
             // Stash Pickup Logic
             if (MacroConfig.autoStashManager && isPickingUpStash && client.player != null) {
-                // Only perform stash pickup when NOT in a GUI
-                if (client.screen == null) {
+                MacroState.State state = MacroStateManager.getCurrentState();
+                // Only perform stash pickup when NOT in a GUI and NOT in a sensitive state
+                if (client.screen == null && state != MacroState.State.VISITING 
+                    && state != MacroState.State.CLEANING && state != MacroState.State.SPRAYING) {
                     long now = System.currentTimeMillis();
                     if (now - lastStashPickupTime >= STASH_PICKUP_DELAY_MS) {
                         lastStashPickupTime = now;
