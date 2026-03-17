@@ -241,7 +241,7 @@ public class IhanuatClient implements ClientModInitializer {
                         || lowerText.contains("proxy restart")) {
                     RestartManager.handleRestartMessage(net.minecraft.client.Minecraft.getInstance());
                     return;
-                // 
+                }
 
                 if (lowerText.contains("autosell") && lowerText.contains("script activated")) {
                     MacroStateManager.setCurrentState(MacroState.State.AUTOSELLING);
