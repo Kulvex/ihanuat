@@ -184,12 +184,7 @@ public class DynamicRestManager {
                             false);
                 }
 
-                // Mark as intentional so the disconnect mixin does not trigger an
-                // unexpected-kick reconnect on top of ours.
-                MacroStateManager.setIntentionalDisconnect(true);
 
-                // Schedule reconnect (shouldResume = true → recovery will fire on rejoin)
-                ReconnectScheduler.scheduleReconnect(breakSeconds, true);
 
                 // Actually disconnect — use Minecraft#disconnect which cleanly
                 // tears down the connection and returns to our custom rest screen.
@@ -201,7 +196,11 @@ public class DynamicRestManager {
                 // Reset the trigger so scheduleNextRest() can pick up a new time after recovery
                 nextRestTriggerMs = 0;
 
-                client.execute(() -> client.disconnect(new DynamicRestScreen(restEndTimeMs, durationMs), false));
+                client.execute(() -> {
+                    MacroStateManager.setIntentionalDisconnect(true);
+                    ReconnectScheduler.scheduleReconnect(breakSeconds, true);
+                    client.disconnect(new DynamicRestScreen(restEndTimeMs, durationMs), false);
+                });
 
                 restSequenceStage = 2;
                 nextStageActionTime = Long.MAX_VALUE; // no further stages needed
