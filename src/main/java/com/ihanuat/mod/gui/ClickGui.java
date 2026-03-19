@@ -309,8 +309,7 @@ public class ClickGui extends Screen {
         });
         ScreenKeyboardEvents.allowKeyPress(this).register((scr, event) -> {
             if ((event.modifiers() & GLFW.GLFW_MOD_SHIFT) != 0) shiftHeld = true;
-            handleKeyPressed(event.key(), event.scancode(), event.modifiers());
-            return true;
+            handleKeyPressed(event.key(), event.scancode(), event.modifiers()); return true;
         });
         ScreenKeyboardEvents.allowKeyRelease(this).register((scr, event) -> {
             if (event.key() == 340 || event.key() == 344) shiftHeld = false;
@@ -2119,11 +2118,27 @@ public class ClickGui extends Screen {
         @Override public boolean keyPressed(int key, int scan, int mods) {
             if (key == 259 && !raw.isEmpty()) { raw = raw.substring(0, raw.length() - 1); return true; }
             if (key == 257 || key == 335) { commit(); return true; }
+            if (key == 86 && (mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) != 0) {
+                String clip = net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard();
+                if (clip != null) for (char ch : clip.toCharArray()) charTyped(ch, 0);
+                return true;
+            }
             if ((mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) == 0) {
+                // Primary path: unshifted key name (works for QWERTY and numpad)
                 String name = org.lwjgl.glfw.GLFW.glfwGetKeyName(key, scan);
                 if (name != null && name.length() == 1) {
                     char c = name.charAt(0);
                     if (Character.isDigit(c) || (c == '-' && raw.isEmpty())) { raw += c; return true; }
+                }
+                // Fallback for layouts where digits require Shift (e.g. French/AZERTY):
+                // GLFW key codes 48-57 are the top-row digit keys 0-9 regardless of layout.
+                if ((mods & org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT) != 0 && key >= 48 && key <= 57) {
+                    char c = (char) key; // key code 48='0'...57='9'
+                    raw += c; return true;
+                }
+                // Numpad digits (GLFW_KEY_KP_0=320 .. GLFW_KEY_KP_9=329)
+                if (key >= 320 && key <= 329) {
+                    raw += (char)('0' + key - 320); return true;
                 }
             }
             return false;
@@ -2187,11 +2202,27 @@ public class ClickGui extends Screen {
         @Override public boolean keyPressed(int key, int scan, int mods) {
             if (key == 259 && !raw.isEmpty()) { raw = raw.substring(0, raw.length() - 1); return true; }
             if (key == 257 || key == 335) { commit(); return true; }
+            if (key == 86 && (mods & GLFW.GLFW_MOD_CONTROL) != 0) {
+                String clip = net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard();
+                if (clip != null) for (char ch : clip.toCharArray()) charTyped(ch, 0);
+                return true;
+            }
             if ((mods & GLFW.GLFW_MOD_CONTROL) == 0) {
                 String name = GLFW.glfwGetKeyName(key, scan);
                 if (name != null && name.length() == 1) {
                     char c = name.charAt(0);
                     if (Character.isDigit(c) || (c == '-' && raw.isEmpty()) || (c == '.' && !raw.contains("."))) { raw += c; return true; }
+                }
+                // French/AZERTY: Shift+numrow produces digits; GLFW key 48-57 = '0'-'9'
+                if ((mods & GLFW.GLFW_MOD_SHIFT) != 0 && key >= 48 && key <= 57) {
+                    raw += (char) key; return true;
+                }
+                if (key >= 320 && key <= 329) {
+                    raw += (char)('0' + key - 320); return true;
+                }
+                // Decimal point: numpad decimal (330) or period key
+                if ((key == 330 || key == 46) && !raw.contains(".")) {
+                    raw += '.'; return true;
                 }
             }
             return false;
