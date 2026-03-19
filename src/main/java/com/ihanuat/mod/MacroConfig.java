@@ -19,6 +19,11 @@ public class MacroConfig {
         SNEAK, DOUBLE_TAP_SPACE
     }
 
+    // text style for both the clickgui and HUD — none, drop shadow, or outline
+    public enum TextStyle {
+        NONE, SHADOW, OUTLINE
+    }
+
     // ── Defaults ──────────────────────────────────────────────────────────────
     public static final int DEFAULT_PEST_THRESHOLD = 5;
     public static final boolean DEFAULT_TRIGGER_PEST_ON_CHAT = true;
@@ -51,6 +56,7 @@ public class MacroConfig {
     public static final int DEFAULT_WARDROBE_SLOT_VISITOR = 3;
     public static final boolean DEFAULT_ARMOR_SWAP_VISITOR = false;
     public static final int DEFAULT_GUI_CLICK_DELAY = 500;
+    public static final int DEFAULT_AUTOSELL_CLICK_DELAY = 500;
     public static final int DEFAULT_EQUIPMENT_SWAP_DELAY = 250;
     public static final int DEFAULT_ROD_SWAP_DELAY = 100;
     public static final int DEFAULT_BOOK_COMBINE_DELAY = 300;
@@ -174,6 +180,7 @@ public class MacroConfig {
     public static int wardrobeSlotPest = DEFAULT_WARDROBE_SLOT_PEST;
     public static int wardrobeSlotVisitor = DEFAULT_WARDROBE_SLOT_VISITOR;
     public static int guiClickDelay = DEFAULT_GUI_CLICK_DELAY;
+    public static int autosellClickDelay = DEFAULT_AUTOSELL_CLICK_DELAY;
     public static int equipmentSwapDelay = DEFAULT_EQUIPMENT_SWAP_DELAY;
     public static int rodSwapDelay = DEFAULT_ROD_SWAP_DELAY;
     public static int bookCombineDelay = DEFAULT_BOOK_COMBINE_DELAY;
@@ -186,8 +193,12 @@ public class MacroConfig {
     public static String restartScript = DEFAULT_RESTART_SCRIPT;
     public static int gardenWarpDelay = DEFAULT_GARDEN_WARP_DELAY;
     public static int restScriptingTime = DEFAULT_REST_SCRIPTING_TIME;
+    public static int restScriptingTimeMin = DEFAULT_REST_SCRIPTING_TIME - DEFAULT_REST_SCRIPTING_TIME_OFFSET;
+    public static int restScriptingTimeMax = DEFAULT_REST_SCRIPTING_TIME + DEFAULT_REST_SCRIPTING_TIME_OFFSET;
     public static int restScriptingTimeOffset = DEFAULT_REST_SCRIPTING_TIME_OFFSET;
     public static int restBreakTime = DEFAULT_REST_BREAK_TIME;
+    public static int restBreakTimeMin = DEFAULT_REST_BREAK_TIME - DEFAULT_REST_BREAK_TIME_OFFSET;
+    public static int restBreakTimeMax = DEFAULT_REST_BREAK_TIME + DEFAULT_REST_BREAK_TIME_OFFSET;
     public static int restBreakTimeOffset = DEFAULT_REST_BREAK_TIME_OFFSET;
     public static boolean enablePlotTpRewarp = DEFAULT_ENABLE_PLOT_TP_REWARP;
     public static boolean holdWUntilWall = DEFAULT_HOLD_W_UNTIL_WALL;
@@ -262,6 +273,13 @@ public class MacroConfig {
     public static int themeToggleOff   = 0xFF2A2A3A;
     public static int themeSliderFill  = 0xFF3A3A99;
     public static int themeButtonHover = 0xFF4444BB;
+    public static TextStyle themeTextStyle = TextStyle.NONE;
+    public static final int DEFAULT_THEME_OUTLINE_SIZE = 1;
+    public static final int DEFAULT_THEME_SHADOW_OPACITY = 180;
+    // outline pixel radius (1-3), shadow uses this as nothing extra needed
+    public static int themeOutlineSize = 1;
+    // shadow color opacity (0-255), 0 = fully transparent, 255 = fully opaque black
+    public static int themeShadowOpacity = 180;
 
     // ── HUD colors (0xRRGGBB — no alpha channel stored) ──────────────────────
     public static int hudBgColor            = DEFAULT_HUD_BG_COLOR;
@@ -278,6 +296,7 @@ public class MacroConfig {
     public static int hudStateVisitingColor     = DEFAULT_HUD_STATE_VISITING_COLOR;
     public static int hudStateAutosellingColor  = DEFAULT_HUD_STATE_AUTOSELLING_COLOR;
     public static int hudStateSprayingColor     = DEFAULT_HUD_STATE_SPRAYING_COLOR;
+    public static int hudDynamicRestBgColor     = 0x000000;  // background color for the dynamic rest screen
 
     // ── Color helpers ─────────────────────────────────────────────────────────
 
@@ -297,6 +316,43 @@ public class MacroConfig {
 
     /** Formats 0xRRGGBB as 6-char uppercase hex string. */
     public static String toHexString(int rgb) { return String.format("%06X", rgb & 0xFFFFFF); }
+
+    /**
+     * draws text respecting the current themeTextStyle
+     * shadow = built-in mc shadow, outline = manual 1px outline trick
+     */
+    public static void drawStyledText(net.minecraft.client.gui.GuiGraphics g, net.minecraft.client.gui.Font font, String text, int x, int y, int color) {
+        switch (themeTextStyle) {
+            case SHADOW:
+                // shadow — mc built-in shadow but we tint it with themeShadowOpacity
+                // mc doesn't let us control shadow color directly so we fake it:
+                // draw a semi-transparent black offset copy then the real text on top
+                if (themeShadowOpacity > 0) {
+                    int shadowColor = (themeShadowOpacity << 24) | 0x000000;
+                    g.drawString(font, text, x + 1, y + 1, shadowColor, false);
+                }
+                g.drawString(font, text, x, y, color, false);
+                break;
+            case OUTLINE: {
+                // outline — draw shadow color at each pixel in the outline radius, then text on top
+                int shadowColor = (themeShadowOpacity << 24) | 0x000000;
+                int r = Math.max(1, Math.min(3, themeOutlineSize));
+                for (int ox = -r; ox <= r; ox++) {
+                    for (int oy = -r; oy <= r; oy++) {
+                        if (ox == 0 && oy == 0) continue;
+                        // skip corners for sizes > 1 to get a rounder look
+                        if (r > 1 && Math.abs(ox) == r && Math.abs(oy) == r) continue;
+                        g.drawString(font, text, x + ox, y + oy, shadowColor, false);
+                    }
+                }
+                g.drawString(font, text, x, y, color, false);
+                break;
+            }
+            default:
+                g.drawString(font, text, x, y, color, false);
+                break;
+        }
+    }
 
     private static long sanitizeLifetimeAccumulated(long savedValue) {
         long normalized = Math.max(0L, savedValue);
@@ -346,7 +402,59 @@ public class MacroConfig {
 
     private static final File CONFIG_FILE =
             FabricLoader.getInstance().getConfigDir().resolve("ihanuat_config.json").toFile();
+    // written once on first launch, never overwritten — source of truth for "reset to default"
+    private static final File DEFAULTS_FILE =
+            FabricLoader.getInstance().getConfigDir().resolve("ihanuat_defaults.json").toFile();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    /** Writes the factory-default ConfigData to disk if the file does not yet exist. */
+    public static void saveDefaultsIfAbsent() {
+        if (DEFAULTS_FILE.exists()) return;
+        try (FileWriter w = new FileWriter(DEFAULTS_FILE)) {
+            GSON.toJson(new ConfigData(), w); // ConfigData field initialisers ARE the defaults
+        } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    /**
+     * Returns the stored default value for a named field from ihanuat_defaults.json.
+     * Falls back to an empty string / "0" if the file is missing or the field is absent.
+     */
+    public static String getDefaultString(String field) {
+        return readDefaultField(field, "");
+    }
+    public static String getDefaultInt(String field) {
+        return readDefaultField(field, "0");
+    }
+    public static String getDefaultDouble(String field) {
+        return readDefaultField(field, "0");
+    }
+    public static String getDefaultList(String field) {
+        // returns newline-joined list, or empty string
+        try {
+            if (!DEFAULTS_FILE.exists()) return "";
+            try (java.io.FileReader r = new java.io.FileReader(DEFAULTS_FILE)) {
+                com.google.gson.JsonObject obj = com.google.gson.JsonParser.parseReader(r).getAsJsonObject();
+                if (!obj.has(field)) return "";
+                com.google.gson.JsonElement el = obj.get(field);
+                if (!el.isJsonArray()) return "";
+                java.util.List<String> lines = new java.util.ArrayList<>();
+                for (com.google.gson.JsonElement item : el.getAsJsonArray())
+                    lines.add(item.getAsString());
+                return String.join("\n", lines);
+            }
+        } catch (Exception e) { return ""; }
+    }
+
+    private static String readDefaultField(String field, String fallback) {
+        try {
+            if (!DEFAULTS_FILE.exists()) return fallback;
+            try (java.io.FileReader r = new java.io.FileReader(DEFAULTS_FILE)) {
+                com.google.gson.JsonObject obj = com.google.gson.JsonParser.parseReader(r).getAsJsonObject();
+                if (!obj.has(field)) return fallback;
+                return obj.get(field).getAsString();
+            }
+        } catch (Exception e) { return fallback; }
+    }
 
     public static void save() {
         ConfigData d = new ConfigData();
@@ -379,6 +487,7 @@ public class MacroConfig {
         d.wardrobeSlotPest = wardrobeSlotPest;
         d.wardrobeSlotVisitor = wardrobeSlotVisitor;
         d.guiClickDelay = guiClickDelay;
+        d.autosellClickDelay = autosellClickDelay;
         d.equipmentSwapDelay = equipmentSwapDelay;
         d.rodSwapDelay = rodSwapDelay;
         d.bookCombineDelay = bookCombineDelay;
@@ -391,8 +500,12 @@ public class MacroConfig {
         d.restartScript = restartScript;
         d.gardenWarpDelay = gardenWarpDelay;
         d.restScriptingTime = restScriptingTime;
+        d.restScriptingTimeMin = restScriptingTimeMin;
+        d.restScriptingTimeMax = restScriptingTimeMax;
         d.restScriptingTimeOffset = restScriptingTimeOffset;
         d.restBreakTime = restBreakTime;
+        d.restBreakTimeMin = restBreakTimeMin;
+        d.restBreakTimeMax = restBreakTimeMax;
         d.restBreakTimeOffset = restBreakTimeOffset;
         d.enablePlotTpRewarp = enablePlotTpRewarp;
         d.holdWUntilWall = holdWUntilWall;
@@ -415,6 +528,9 @@ public class MacroConfig {
         d.themeToggleOff   = themeToggleOff;
         d.themeSliderFill  = themeSliderFill;
         d.themeButtonHover = themeButtonHover;
+        d.themeTextStyle   = themeTextStyle;
+        d.themeOutlineSize    = themeOutlineSize;
+        d.themeShadowOpacity  = themeShadowOpacity;
         d.persistSessionTimer = persistSessionTimer;
         d.compactProfitCalculator = compactProfitCalculator;
         d.showProfitHudWhileInactive = showProfitHudWhileInactive;
@@ -460,11 +576,13 @@ public class MacroConfig {
         d.hudStateVisitingColorHex    = toHexString(hudStateVisitingColor);
         d.hudStateAutosellingColorHex = toHexString(hudStateAutosellingColor);
         d.hudStateSprayingColorHex    = toHexString(hudStateSprayingColor);
+        d.hudDynamicRestBgColor       = hudDynamicRestBgColor;
         try (FileWriter w = new FileWriter(CONFIG_FILE)) { GSON.toJson(d, w); }
         catch (Exception e) { e.printStackTrace(); }
     }
 
     public static void load() {
+        saveDefaultsIfAbsent(); // write defaults file once on first launch
         if (!CONFIG_FILE.exists()) { save(); return; }
         boolean shouldRewriteConfig = false;
         try (FileReader r = new FileReader(CONFIG_FILE)) {
@@ -499,6 +617,7 @@ public class MacroConfig {
             wardrobeSlotPest = d.wardrobeSlotPest;
             wardrobeSlotVisitor = d.wardrobeSlotVisitor;
             guiClickDelay = d.guiClickDelay;
+            autosellClickDelay = d.autosellClickDelay;
             equipmentSwapDelay = d.equipmentSwapDelay;
             rodSwapDelay = d.rodSwapDelay;
             bookCombineDelay = d.bookCombineDelay;
@@ -511,8 +630,12 @@ public class MacroConfig {
             if (d.restartScript != null && !d.restartScript.isBlank()) restartScript = d.restartScript;
             gardenWarpDelay = d.gardenWarpDelay;
             restScriptingTime = d.restScriptingTime;
+            if (d.restScriptingTimeMin != 0) restScriptingTimeMin = d.restScriptingTimeMin;
+            if (d.restScriptingTimeMax != 0) restScriptingTimeMax = d.restScriptingTimeMax;
             restScriptingTimeOffset = d.restScriptingTimeOffset;
             restBreakTime = d.restBreakTime;
+            if (d.restBreakTimeMin != 0) restBreakTimeMin = d.restBreakTimeMin;
+            if (d.restBreakTimeMax != 0) restBreakTimeMax = d.restBreakTimeMax;
             restBreakTimeOffset = d.restBreakTimeOffset;
             enablePlotTpRewarp = d.enablePlotTpRewarp;
             holdWUntilWall = d.holdWUntilWall;
@@ -533,6 +656,9 @@ public class MacroConfig {
             themeToggleOff   = d.themeToggleOff;
             themeSliderFill  = d.themeSliderFill;
             themeButtonHover = d.themeButtonHover;
+            if (d.themeTextStyle != null) themeTextStyle = d.themeTextStyle;
+            themeOutlineSize   = Math.max(1, Math.min(3, d.themeOutlineSize > 0 ? d.themeOutlineSize : 1));
+            themeShadowOpacity = Math.max(0, Math.min(255, d.themeShadowOpacity));
             persistSessionTimer = d.persistSessionTimer;
             compactProfitCalculator = d.compactProfitCalculator;
             showProfitHudWhileInactive = d.showProfitHudWhileInactive;
@@ -584,6 +710,7 @@ public class MacroConfig {
             hudStateVisitingColor    = parseHexColor(d.hudStateVisitingColorHex, DEFAULT_HUD_STATE_VISITING_COLOR);
             hudStateAutosellingColor = parseHexColor(d.hudStateAutosellingColorHex, DEFAULT_HUD_STATE_AUTOSELLING_COLOR);
             hudStateSprayingColor    = parseHexColor(d.hudStateSprayingColorHex, DEFAULT_HUD_STATE_SPRAYING_COLOR);
+            if (d.hudDynamicRestBgColor != 0) hudDynamicRestBgColor = d.hudDynamicRestBgColor;
         } catch (Exception e) { e.printStackTrace(); }
         if (shouldRewriteConfig) save();
     }
@@ -671,6 +798,7 @@ public class MacroConfig {
         int wardrobeSlotPest = DEFAULT_WARDROBE_SLOT_PEST;
         int wardrobeSlotVisitor = DEFAULT_WARDROBE_SLOT_VISITOR;
         int guiClickDelay = DEFAULT_GUI_CLICK_DELAY;
+        int autosellClickDelay = DEFAULT_AUTOSELL_CLICK_DELAY;
         int equipmentSwapDelay = DEFAULT_EQUIPMENT_SWAP_DELAY;
         int rodSwapDelay = DEFAULT_ROD_SWAP_DELAY;
         int bookCombineDelay = DEFAULT_BOOK_COMBINE_DELAY;
@@ -683,8 +811,12 @@ public class MacroConfig {
         String restartScript = DEFAULT_RESTART_SCRIPT;
         int gardenWarpDelay = DEFAULT_GARDEN_WARP_DELAY;
         int restScriptingTime = DEFAULT_REST_SCRIPTING_TIME;
+        int restScriptingTimeMin = 0;
+        int restScriptingTimeMax = 0;
         int restScriptingTimeOffset = DEFAULT_REST_SCRIPTING_TIME_OFFSET;
         int restBreakTime = DEFAULT_REST_BREAK_TIME;
+        int restBreakTimeMin = 0;
+        int restBreakTimeMax = 0;
         int restBreakTimeOffset = DEFAULT_REST_BREAK_TIME_OFFSET;
         boolean enablePlotTpRewarp = DEFAULT_ENABLE_PLOT_TP_REWARP;
         boolean holdWUntilWall = DEFAULT_HOLD_W_UNTIL_WALL;
@@ -705,6 +837,9 @@ public class MacroConfig {
         int themeToggleOff   = 0xFF2A2A3A;
         int themeSliderFill  = 0xFF3A3A99;
         int themeButtonHover = 0xFF4444BB;
+        TextStyle themeTextStyle = TextStyle.NONE;
+        int themeOutlineSize   = 1;
+        int themeShadowOpacity = 180;
         boolean persistSessionTimer = DEFAULT_PERSIST_SESSION_TIMER;
         boolean compactProfitCalculator = DEFAULT_COMPACT_PROFIT_CALCULATOR;
         boolean showProfitHudWhileInactive = DEFAULT_SHOW_PROFIT_HUD_WHILE_INACTIVE;
@@ -754,5 +889,6 @@ public class MacroConfig {
         String hudStateVisitingColorHex    = toHexString(DEFAULT_HUD_STATE_VISITING_COLOR);
         String hudStateAutosellingColorHex = toHexString(DEFAULT_HUD_STATE_AUTOSELLING_COLOR);
         String hudStateSprayingColorHex    = toHexString(DEFAULT_HUD_STATE_SPRAYING_COLOR);
+        int hudDynamicRestBgColor = 0;
     }
 }
