@@ -3,6 +3,7 @@ package com.ihanuat.mod.util;
 import com.ihanuat.mod.DebugLogger;
 import com.ihanuat.mod.MacroConfig;
 import com.ihanuat.mod.MacroState;
+import com.ihanuat.mod.MacroWorkerThread;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
@@ -21,6 +22,14 @@ import java.util.List;
 public class ClientUtils {
     private static long lastCommandTime = 0;
     private static final long COMMAND_COOLDOWN_MS = 250;
+    public static final java.util.regex.Pattern COLOR_PATTERN = java.util.regex.Pattern.compile("(?i)§[0-9A-FK-ORZ]");
+    public static final java.util.regex.Pattern COMMA_PATTERN = java.util.regex.Pattern.compile(",");
+    public static final java.util.regex.Pattern NON_DIGIT_PATTERN = java.util.regex.Pattern.compile("[^0-9]");
+
+    public static String stripColor(String text) {
+        if (text == null) return null;
+        return COLOR_PATTERN.matcher(text).replaceAll("");
+    }
 
     public static void sendDebugMessage(Minecraft client, String message) {
         // Always feed the file logger (it checks MacroConfig.logDebugToFile itself)
@@ -49,6 +58,11 @@ public class ClientUtils {
         long diff = now - lastCommandTime;
 
         if (diff < COMMAND_COOLDOWN_MS) {
+            if (client.isSameThread()) {
+                MacroWorkerThread.getInstance().submit("DeferredCommand:" + abbreviateCommandLabel(cmd),
+                        () -> sendCommand(client, cmd, forceClientSide));
+                return;
+            }
             try {
                 Thread.sleep(COMMAND_COOLDOWN_MS - diff);
             } catch (InterruptedException ignored) {
@@ -78,6 +92,14 @@ public class ClientUtils {
         }
 
         lastCommandTime = System.currentTimeMillis();
+    }
+
+    private static String abbreviateCommandLabel(String cmd) {
+        if (cmd == null || cmd.isBlank()) {
+            return "unknown";
+        }
+        String trimmed = cmd.trim();
+        return trimmed.length() <= 24 ? trimmed : trimmed.substring(0, 24);
     }
 
     public static void forceReleaseKeys(Minecraft client) {
@@ -125,7 +147,7 @@ public class ClientUtils {
         for (int i = 0; i < 9; i++) {
             net.minecraft.world.item.ItemStack stack = client.player.getInventory().getItem(i);
             if (stack != null && !stack.isEmpty()) {
-                String itemName = stack.getHoverName().getString().replaceAll("\u00A7[0-9a-fk-or]", "").trim();
+                String itemName = stripColor(stack.getHoverName().getString()).trim();
                 if (itemName.contains("Game Menu") || itemName.contains("My Profile")) {
                     hasLobbyItems = true;
                     break;
@@ -149,7 +171,7 @@ public class ClientUtils {
                     name = String.valueOf(info.getProfile());
                 }
 
-                String clean = name.replaceAll("\u00A7[0-9a-fk-or]", "").trim();
+                String clean = stripColor(name).trim();
                 if (clean.contains("Area: Garden"))
                     return MacroState.Location.GARDEN;
                 if (clean.contains("Area:")) {
@@ -183,7 +205,7 @@ public class ClientUtils {
             if (team != null) {
                 fullText = team.getPlayerPrefix().getString() + entryName + team.getPlayerSuffix().getString();
             }
-            lines.add(fullText.replaceAll("\u00A7[0-9a-fk-or]", "").trim());
+            lines.add(stripColor(fullText).trim());
         }
 
         Collections.reverse(lines);
@@ -230,13 +252,13 @@ public class ClientUtils {
             if (team != null) {
                 fullText = team.getPlayerPrefix().getString() + entryName + team.getPlayerSuffix().getString();
             }
-            String line = fullText.replaceAll("(?i)§[0-9A-FK-ORZ]", "").replaceAll(",", "").trim();
+            String line = COMMA_PATTERN.matcher(stripColor(fullText)).replaceAll("").trim();
 
             if (line.contains("Purse:")) {
                 try {
                     String valuePart = line.split("Purse:")[1].trim();
-                    // Handle "26,000,000 (+300)" by taking only the first part before any space
-                    String mainBalance = valuePart.split(" ")[0].replaceAll("[^0-9]", "");
+                    String firstPart = valuePart.split(" ")[0];
+                    String mainBalance = NON_DIGIT_PATTERN.matcher(firstPart).replaceAll("");
                     return Long.parseLong(mainBalance);
                 } catch (Exception ignored) {
                 }
@@ -265,7 +287,7 @@ public class ClientUtils {
             if (team != null) {
                 fullText = team.getPlayerPrefix().getString() + entryName + team.getPlayerSuffix().getString();
             }
-            String line = fullText.replaceAll("(?i)\u00A7.", "").trim();
+            String line = stripColor(fullText).trim();
 
             // Match formats: "Plot: 14", "Plot - 6", "Plot #14", "Plot: Barn"
             // Handles non-standard color codes like §y and multiple spaces.
@@ -424,7 +446,7 @@ public class ClientUtils {
         for (int i = 0; i < 36; i++) {
             net.minecraft.world.item.ItemStack stack = client.player.getInventory().getItem(i);
             if (stack != null && !stack.isEmpty()) {
-                String itemName = stack.getHoverName().getString().replaceAll("\u00A7[0-9a-fk-or]", "").trim();
+                String itemName = stripColor(stack.getHoverName().getString()).trim();
                 String lowercaseName = itemName.toLowerCase();
                 if (lowercaseName.contains("aspect of the void") || lowercaseName.contains("aspect of the end")) {
                     return i;

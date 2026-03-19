@@ -207,6 +207,18 @@ public class ClickGui extends Screen {
         p.add(toggle("Trigger on Chat",  () -> MacroConfig.triggerPestOnChat,                  v -> { MacroConfig.triggerPestOnChat = v; save(); }));
         p.add(toggle("Delay Crop Fever", () -> MacroConfig.delayPestForCropFever,              v -> { MacroConfig.delayPestForCropFever = v; save(); }));
         p.add(toggle("AOTV to Roof",     () -> MacroConfig.aotvToRoof,                         v -> { MacroConfig.aotvToRoof = v; save(); }));
+        p.add(csvTextSetting("AOTV Roof Plots",
+                () -> String.join(", ", MacroConfig.aotvRoofPlots),
+                v -> {
+                    List<String> plots = new ArrayList<>();
+                    for (String part : v.split(",")) {
+                        String trimmed = part.trim();
+                        if (!trimmed.isEmpty()) plots.add(trimmed);
+                    }
+                    MacroConfig.aotvRoofPlots = plots;
+                    save();
+                },
+                "Comma separated, e.g. 1, 2, 3"));
         p.add(toggle("Break Before AOTV",() -> MacroConfig.breakBlocksBeforeAotv,              v -> { MacroConfig.breakBlocksBeforeAotv = v; save(); }));
         p.add(slider("Roof Pitch",       45, 90, () -> MacroConfig.aotvRoofPitch,              v -> { MacroConfig.aotvRoofPitch = v; save(); }, ""));
         p.add(slider("Pitch Human.",     0,  15, () -> MacroConfig.aotvRoofPitchHumanization,  v -> { MacroConfig.aotvRoofPitchHumanization = v; save(); }, ""));
@@ -230,6 +242,8 @@ public class ClickGui extends Screen {
     private Panel autoSellPanel(int[] pos) {
         Panel p = new Panel("Auto Sell", pos[0], pos[1]);
         p.add(toggle("Custom Autosell", () -> MacroConfig.autoBoosterCookie, v -> { MacroConfig.autoBoosterCookie = v; save(); }));
+        p.add(listSetting("Autosell Item List", () -> MacroConfig.boosterCookieItems,
+                v -> { MacroConfig.boosterCookieItems = new ArrayList<>(v); save(); }));
         return p;
     }
 
@@ -240,6 +254,10 @@ public class ClickGui extends Screen {
         p.add(toggle("Lifetime HUD",  () -> MacroConfig.showLifetimeHud,            v -> { MacroConfig.showLifetimeHud = v; save(); }));
         p.add(toggle("HUD While Off", () -> MacroConfig.showProfitHudWhileInactive,  v -> { MacroConfig.showProfitHudWhileInactive = v; save(); }));
         p.add(toggle("Compact",       () -> MacroConfig.compactProfitCalculator,    v -> { MacroConfig.compactProfitCalculator = v; save(); }));
+        p.add(listSetting("Pet XP List", () -> MacroConfig.petXpTrackedPets,
+                v -> { MacroConfig.petXpTrackedPets = new ArrayList<>(v); save(); },
+                "Pet Name, Max Level (100/200), Level 1 Price,",
+                "Max Level Price, Rarity" + String.join(", ", java.util.Arrays.stream(MacroConfig.PetRarity.values()).map(Enum::name).toList())));
         p.add(button("Reset Session",  () -> { MacroStateManager.resetSession(); notifyMsg("Session reset!"); }));
         p.add(button("Reset Daily",    () -> { ProfitManager.resetDaily();       notifyMsg("Daily reset!"); }));
         p.add(button("Reset Lifetime", () -> { ProfitManager.resetLifetime();    notifyMsg("Lifetime reset!"); }));
@@ -262,6 +280,8 @@ public class ClickGui extends Screen {
         p.add(slider("Book Threshold",   1, 35, () -> MacroConfig.bookThreshold, v -> { MacroConfig.bookThreshold = v; save(); }, ""));
         p.add(toggle("Chat Cleanup",     () -> MacroConfig.hideFilteredChat,   v -> { MacroConfig.hideFilteredChat = v; save(); }));
         p.add(toggle("Auto-Drop Junk",   () -> MacroConfig.autoDropJunk,       v -> { MacroConfig.autoDropJunk = v; save(); }));
+        p.add(listSetting("Junk List",   () -> MacroConfig.junkItems,
+                v -> { MacroConfig.junkItems = new ArrayList<>(v); save(); }));
         p.add(slider("Junk Threshold",   1, 35, () -> MacroConfig.junkThreshold, v -> { MacroConfig.junkThreshold = v; save(); }, ""));
         p.add(textSetting("Junk PlotTP", () -> MacroConfig.dropJunkPlotTp,    v -> { MacroConfig.dropJunkPlotTp = v; save(); }));
         p.add(toggle("Stash Manager",    () -> MacroConfig.autoStashManager,  v -> { MacroConfig.autoStashManager = v; save(); }));
@@ -315,6 +335,9 @@ public class ClickGui extends Screen {
     private static SliderEntry slider(String l, int mn, int mx, Supplier<Integer> g, Consumer<Integer> s, String u) { return new SliderEntry(l, mn, mx, g, s, u); }
     private static <E extends Enum<E>> CycleEnumEntry<E> cycleEnum(String l, E[] vs, Supplier<E> g, Consumer<E> s) { return new CycleEnumEntry<>(l, vs, g, s); }
     private static TextSettingEntry textSetting(String l, Supplier<String> g, Consumer<String> s) { return new TextSettingEntry(l, g, s); }
+    private static TextSettingEntry csvTextSetting(String l, Supplier<String> g, Consumer<String> s, String placeholder) { return new TextSettingEntry(l, g, s, placeholder); }
+    private static ListSettingEntry listSetting(String l, Supplier<List<String>> g, Consumer<List<String>> s) { return new ListSettingEntry(l, g, s); }
+    private static ListSettingEntry listSetting(String l, Supplier<List<String>> g, Consumer<List<String>> s, String... hints) { return new ListSettingEntry(l, g, s, hints); }
     private static IntFieldEntry intField(String l, Supplier<Integer> g, Consumer<Integer> s, String u) { return new IntFieldEntry(l, g, s, u); }
     private static ButtonEntry button(String l, Runnable a) { return new ButtonEntry(l, a); }
     private static ColorEntry colorEntry(String l, Supplier<Integer> g, Consumer<Integer> s) { return new ColorEntry(l, g, s); }
@@ -517,15 +540,37 @@ public class ClickGui extends Screen {
     }
 
     static class TextSettingEntry implements Entry {
-        final String label; final Supplier<String> getter; final Consumer<String> setter;
-        TextSettingEntry(String l, Supplier<String> g, Consumer<String> s) { label=l; getter=g; setter=s; }
+        final String label; final Supplier<String> getter; final Consumer<String> setter; final String placeholder;
+        TextSettingEntry(String l, Supplier<String> g, Consumer<String> s) { this(l, g, s, ""); }
+        TextSettingEntry(String l, Supplier<String> g, Consumer<String> s, String p) { label=l; getter=g; setter=s; placeholder=p; }
         @Override public void render(GuiGraphics g, int x, int y, int w, int h, boolean hov, net.minecraft.client.gui.Font font) {
             String val=getter.get(); if(val.length()>11) val=val.substring(0,9)+".."; int vw=font.width(val); int mid=y+h/2-4;
             g.drawString(font, label, x+2, mid, hov ? C_TXT() : C_DIM(), false);
             g.drawString(font, val, x+w-vw-6, mid, C_DIM(), false);
         }
         @Override public void onClick(int mx, int my) {}
-        @Override public SubPanel openSubPanel(int mx, int my, int sw, int sh) { return new StringInputSubPanel(mx, my, sw, sh, label, getter.get(), setter); }
+        @Override public SubPanel openSubPanel(int mx, int my, int sw, int sh) { return new StringInputSubPanel(mx, my, sw, sh, label, getter.get(), setter, placeholder); }
+    }
+
+    static class ListSettingEntry implements Entry {
+        final String label; final Supplier<List<String>> getter; final Consumer<List<String>> setter; final String[] hints;
+        ListSettingEntry(String l, Supplier<List<String>> g, Consumer<List<String>> s, String... hints) { label=l; getter=g; setter=s; this.hints = hints == null ? new String[0] : hints; }
+        @Override public void render(GuiGraphics g, int x, int y, int w, int h, boolean hov, net.minecraft.client.gui.Font font) {
+            List<String> values = getter.get();
+            String summary;
+            if (values == null || values.isEmpty()) summary = "(empty)";
+            else if (values.size() == 1) summary = values.get(0);
+            else summary = values.get(0) + " +" + (values.size() - 1);
+            if (summary.length() > 11) summary = summary.substring(0, 9) + "..";
+            int vw = font.width(summary);
+            int mid = y + h / 2 - 4;
+            g.drawString(font, label, x + 2, mid, hov ? C_TXT() : C_DIM(), false);
+            g.drawString(font, summary, x + w - vw - 6, mid, C_DIM(), false);
+        }
+        @Override public void onClick(int mx, int my) {}
+        @Override public SubPanel openSubPanel(int mx, int my, int sw, int sh) {
+            return new ListInputSubPanel(mx, my, sw, sh, label, getter.get(), setter, hints);
+        }
     }
 
     static class IntFieldEntry implements Entry {
@@ -755,10 +800,15 @@ public class ClickGui extends Screen {
 
     static class StringInputSubPanel implements SubPanel {
         final String label; String value; final Consumer<String> setter;
+        final String placeholder;
         final int x, y, w = 300, h = 50;
         boolean cursorVisible = true; long lastBlink = System.currentTimeMillis();
         StringInputSubPanel(int mx, int my, int sw, int sh, String label, String initial, Consumer<String> setter) {
+            this(mx, my, sw, sh, label, initial, setter, "");
+        }
+        StringInputSubPanel(int mx, int my, int sw, int sh, String label, String initial, Consumer<String> setter, String placeholder) {
             this.label=label; this.value=initial; this.setter=setter;
+            this.placeholder = placeholder == null ? "" : placeholder;
             this.x=Math.min(mx, sw - w - 4); this.y=Math.min(my, sh - h - 4);
         }
         @Override public void render(GuiGraphics g, int mx, int my, net.minecraft.client.gui.Font font) {
@@ -768,8 +818,12 @@ public class ClickGui extends Screen {
             g.fill(x+4, y+20, x+w-4, y+42, C_SBGR());
             g.fill(x+4, y+42, x+w-4, y+43, C_ACC());
             if (System.currentTimeMillis()-lastBlink>500) { cursorVisible=!cursorVisible; lastBlink=System.currentTimeMillis(); }
-            String disp = value.length() > 38 ? value.substring(value.length()-38) : value;
-            g.drawString(font, disp+(cursorVisible?"|":""), x+6, y+26, C_TXT(), false);
+            if (value.isEmpty() && !placeholder.isEmpty()) {
+                g.drawString(font, placeholder, x+6, y+26, C_DIM(), false);
+            } else {
+                String disp = value.length() > 38 ? value.substring(value.length()-38) : value;
+                g.drawString(font, disp+(cursorVisible?"|":""), x+6, y+26, C_TXT(), false);
+            }
         }
         @Override public boolean contains(int mx, int my) { return mx>=x-2&&mx<=x+w+2&&my>=y-2&&my<=y+h+2; }
         @Override public boolean mouseClicked(int mx, int my, int btn, net.minecraft.client.gui.Font font) { return true; }
@@ -837,6 +891,261 @@ public class ClickGui extends Screen {
         @Override public void commit() {
             try { int v=Integer.parseInt(raw); setter.accept(min==Integer.MIN_VALUE?v:Math.max(min,Math.min(max,v))); }
             catch (NumberFormatException ignored) {}
+        }
+    }
+
+    static class ListInputSubPanel implements SubPanel {
+        final String label;
+        final StringBuilder value;
+        final Consumer<List<String>> setter;
+        final String[] hints;
+        final int x, y, w = 300, h = 122;
+        boolean cursorVisible = true;
+        long lastBlink = System.currentTimeMillis();
+        int cursorIndex;
+        int scrollLine = 0;
+
+        ListInputSubPanel(int mx, int my, int sw, int sh, String label, List<String> initial, Consumer<List<String>> setter, String... hints) {
+            this.label = label;
+            this.setter = setter;
+            this.hints = hints == null ? new String[0] : hints;
+            this.value = new StringBuilder(initial == null ? "" : String.join("\n", initial));
+            this.cursorIndex = this.value.length();
+            this.x = Math.min(mx, sw - w - 4);
+            this.y = Math.min(my, sh - h - 4);
+        }
+
+        private int textLeft() { return x + 6; }
+        private int textTop() { return y + 22 + hints.length * 10; }
+        private int textRight() { return x + w - 6; }
+        private int textBottom() { return y + h - 8; }
+        private int lineStep(net.minecraft.client.gui.Font font) { return font.lineHeight + 1; }
+
+        private List<String> lines() {
+            return java.util.Arrays.asList(value.toString().split("\n", -1));
+        }
+
+        private int cursorLine() {
+            int line = 0;
+            for (int i = 0; i < Math.min(cursorIndex, value.length()); i++) {
+                if (value.charAt(i) == '\n') line++;
+            }
+            return line;
+        }
+
+        private int cursorColumn() {
+            int col = 0;
+            for (int i = Math.min(cursorIndex, value.length()) - 1; i >= 0; i--) {
+                if (value.charAt(i) == '\n') break;
+                col++;
+            }
+            return col;
+        }
+
+        private int lineStartIndex(int targetLine) {
+            int line = 0;
+            for (int i = 0; i < value.length(); i++) {
+                if (line == targetLine) return i;
+                if (value.charAt(i) == '\n') line++;
+            }
+            return line == targetLine ? value.length() : value.length();
+        }
+
+        private int lineEndIndex(int startIndex) {
+            int idx = value.indexOf("\n", startIndex);
+            return idx == -1 ? value.length() : idx;
+        }
+
+        private int visibleLineCount(net.minecraft.client.gui.Font font) {
+            return Math.max(1, (textBottom() - textTop()) / lineStep(font));
+        }
+
+        private int maxScrollLine(net.minecraft.client.gui.Font font) {
+            return Math.max(0, lines().size() - visibleLineCount(font));
+        }
+
+        private void clampScroll(net.minecraft.client.gui.Font font) {
+            scrollLine = Math.max(0, Math.min(maxScrollLine(font), scrollLine));
+        }
+
+        private void ensureCursorVisible(net.minecraft.client.gui.Font font) {
+            int cursorLine = cursorLine();
+            int visible = visibleLineCount(font);
+            if (cursorLine < scrollLine) scrollLine = cursorLine;
+            else if (cursorLine >= scrollLine + visible) scrollLine = cursorLine - visible + 1;
+            clampScroll(font);
+        }
+
+        private void moveCursorHorizontal(int delta) {
+            cursorIndex = Math.max(0, Math.min(value.length(), cursorIndex + delta));
+        }
+
+        private void moveCursorVertical(int delta) {
+            int currentLine = cursorLine();
+            int targetLine = Math.max(0, currentLine + delta);
+            int targetCol = cursorColumn();
+            int targetStart = lineStartIndex(targetLine);
+            int targetEnd = lineEndIndex(targetStart);
+            cursorIndex = Math.min(targetStart + targetCol, targetEnd);
+        }
+
+        private void insertText(String text) {
+            if (text == null || text.isEmpty()) return;
+            value.insert(cursorIndex, text);
+            cursorIndex += text.length();
+        }
+
+        @Override public void render(GuiGraphics g, int mx, int my, net.minecraft.client.gui.Font font) {
+            fillRoundRect(g, x-2, y-2, w+4, h+4, 4, C_SPBD());
+            fillRoundRect(g, x, y, w, h, 3, C_SPBG());
+            g.drawString(font, label, x+5, y+6, C_TXT(), false);
+            int hintY = y + 16;
+            for (String hint : hints) {
+                g.drawString(font, hint, x + 6, hintY, C_DIM(), false);
+                hintY += 10;
+            }
+            g.fill(x+4, y+18 + hints.length * 10, x+w-4, y+h-6, C_SBGR());
+            g.fill(x+4, y+h-6, x+w-4, y+h-5, C_ACC());
+            if (System.currentTimeMillis() - lastBlink > 500) { cursorVisible = !cursorVisible; lastBlink = System.currentTimeMillis(); }
+
+            clampScroll(font);
+            List<String> lines = lines();
+            int step = lineStep(font);
+            int drawY = textTop();
+            int visible = visibleLineCount(font);
+            int caretLine = cursorLine();
+            int caretColumn = cursorColumn();
+
+            for (int lineIndex = scrollLine; lineIndex < lines.size() && lineIndex < scrollLine + visible; lineIndex++) {
+                String line = lines.get(lineIndex);
+                g.drawString(font, line, textLeft(), drawY, C_TXT(), false);
+                if (cursorVisible && lineIndex == caretLine) {
+                    int caretX = textLeft() + font.width(line.substring(0, Math.min(caretColumn, line.length())));
+                    g.fill(caretX, drawY - 1, caretX + 1, drawY + font.lineHeight, C_TXT());
+                }
+                drawY += step;
+            }
+
+            if (maxScrollLine(font) > 0) {
+                int trackX0 = x + w - 5;
+                int trackX1 = x + w - 3;
+                int trackY0 = y + 20 + hints.length * 10;
+                int trackY1 = y + h - 8;
+                int trackH = trackY1 - trackY0;
+                int totalLines = lines.size();
+                int thumbH = Math.max(10, trackH * visible / totalLines);
+                int travel = Math.max(0, trackH - thumbH);
+                int thumbY = trackY0 + (maxScrollLine(font) == 0 ? 0 : (travel * scrollLine / maxScrollLine(font)));
+                g.fill(trackX0, trackY0, trackX1, trackY1, C_OFF());
+                g.fill(trackX0, thumbY, trackX1, thumbY + thumbH, C_ACC());
+            }
+        }
+
+        @Override public boolean contains(int mx, int my) { return mx >= x-2 && mx <= x+w+2 && my >= y-2 && my <= y+h+2; }
+        @Override public boolean mouseClicked(int mx, int my, int btn, net.minecraft.client.gui.Font font) {
+            if (mx >= x + 4 && mx <= x + w - 4 && my >= y + 18 + hints.length * 10 && my <= y + h - 6) {
+                int step = lineStep(font);
+                clampScroll(font);
+                int line = scrollLine + Math.max(0, (my - textTop()) / Math.max(1, step));
+                List<String> lines = lines();
+                line = Math.max(0, Math.min(lines.size() - 1, line));
+                String textLine = lines.get(line);
+                int clickedX = Math.max(textLeft(), Math.min(textRight(), mx));
+                int column = 0;
+                for (int i = 1; i <= textLine.length(); i++) {
+                    if (textLeft() + font.width(textLine.substring(0, i)) > clickedX) break;
+                    column = i;
+                }
+                int lineStart = lineStartIndex(line);
+                cursorIndex = Math.min(lineStart + column, lineStart + textLine.length());
+                ensureCursorVisible(font);
+            }
+            return true;
+        }
+        @Override public void scroll(int dir) {
+            net.minecraft.client.gui.Font font = Minecraft.getInstance().font;
+            scrollLine += dir;
+            clampScroll(font);
+        }
+
+        @Override public boolean keyPressed(int key, int scan, int mods) {
+            net.minecraft.client.gui.Font font = Minecraft.getInstance().font;
+            if (key == GLFW.GLFW_KEY_SPACE) {
+                insertText(" ");
+                ensureCursorVisible(font);
+                return true;
+            }
+            if (key == 259 && value.length() > 0) {
+                if (cursorIndex > 0) {
+                    value.deleteCharAt(cursorIndex - 1);
+                    cursorIndex--;
+                    ensureCursorVisible(font);
+                }
+                return true;
+            }
+            if (key == 261 && cursorIndex < value.length()) {
+                value.deleteCharAt(cursorIndex);
+                ensureCursorVisible(font);
+                return true;
+            }
+            if (key == 257 || key == 335) {
+                insertText("\n");
+                ensureCursorVisible(font);
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_LEFT) {
+                moveCursorHorizontal(-1);
+                ensureCursorVisible(font);
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_RIGHT) {
+                moveCursorHorizontal(1);
+                ensureCursorVisible(font);
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_UP) {
+                moveCursorVertical(-1);
+                ensureCursorVisible(font);
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_DOWN) {
+                moveCursorVertical(1);
+                ensureCursorVisible(font);
+                return true;
+            }
+            if (key == 86 && (mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) != 0) {
+                String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
+                if (clip != null) insertText(clip.replace("\r", ""));
+                ensureCursorVisible(font);
+                return true;
+            }
+            if ((mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) == 0) {
+                String name = org.lwjgl.glfw.GLFW.glfwGetKeyName(key, scan);
+                if (name != null && name.length() == 1) {
+                    char c = name.charAt(0);
+                    if ((mods & org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT) != 0) c = Character.toUpperCase(c);
+                    insertText(String.valueOf(c));
+                    ensureCursorVisible(font);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override public boolean charTyped(char c, int mods) {
+            if (c == '\r') return true;
+            insertText(String.valueOf(c));
+            ensureCursorVisible(Minecraft.getInstance().font);
+            return true;
+        }
+
+        @Override public void commit() {
+            List<String> values = new ArrayList<>();
+            for (String line : value.toString().split("\\R")) {
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty()) values.add(trimmed);
+            }
+            setter.accept(values);
         }
     }
 }

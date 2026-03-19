@@ -25,6 +25,10 @@ public class ProfitManager {
     private static long lastCultivatingValue = -1;
     private static String currentFarmedCrop = "Wheat";
     private static long lastBazaarFetchTime = 0;
+
+    private static final Map<String, Map<String, Long>> hudCache = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<String, Long> hudCacheTime = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long HUD_CACHE_VALIDITY_MS = 250; // Cache HUD data for 250ms
     private static long lastPurseBalance = -1;
     private static String lastDailyResetDate = getCurrentDateString();
 
@@ -136,7 +140,7 @@ public class ProfitManager {
             // Misc Drops
             Map.entry("Cropie", 25000.0), Map.entry("Squash", 75000.0), Map.entry("Fermento", 250000.0),
             Map.entry("Helianthus", 0.0), Map.entry("Tool EXP Capsule", 100000.0),
-            // Pet XP (price per XP point, will be fetched)
+            // Pet XP (price per XP point, derived from configured pet values)
             Map.entry("Pet XP", 0.0),
             Map.entry("Pest Shard", 0.0),
             // AH Items
@@ -264,7 +268,6 @@ public class ProfitManager {
             "charmed\\s+a\\s+Pest\\s+and\\s+captured\\s+(?:its\\s+Shard|(\\d+)\\s+Shards)",
             Pattern.CASE_INSENSITIVE);
 
-    private static final Pattern STRIP_COLOR_PATTERN = Pattern.compile("(?i)§[0-9A-FK-OR]");
 
     private static final Pattern BAZAAR_BUY_PATTERN = Pattern.compile(
             "\\[Bazaar\\] Bought (\\d+)x (.+?) for [\\d,]+ coins!",
@@ -305,7 +308,7 @@ public class ProfitManager {
         }
 
         // Plain text processing for standard drops
-        String plainText = STRIP_COLOR_PATTERN.matcher(text).replaceAll("").trim();
+        String plainText = ClientUtils.stripColor(text).trim();
 
         Matcher overflowMatcher = OVERFLOW_DROP_PATTERN.matcher(plainText);
         if (overflowMatcher.find()) {
@@ -483,7 +486,7 @@ public class ProfitManager {
 
     private static void addDrop(String itemName, long count) {
         // Handle items with suffix counts like "Mutant Nether Wart X9"
-        String processedName = STRIP_COLOR_PATTERN.matcher(itemName).replaceAll("").trim();
+        String processedName = ClientUtils.stripColor(itemName).trim();
         long multiplier = 1;
 
         Matcher suffixMatcher = Pattern.compile("\\s+[xX](\\d+)$").matcher(processedName);
@@ -539,7 +542,7 @@ public class ProfitManager {
     }
 
     public static void addVisitorGain(String itemName, long count) {
-        String cleanName = STRIP_COLOR_PATTERN.matcher(itemName).replaceAll("").replace("+", "").trim();
+        String cleanName = ClientUtils.stripColor(itemName).replace("+", "").trim();
         long multiplier = 1;
         Matcher m = Pattern.compile("\\s+[xX](\\d+)$").matcher(cleanName);
         if (m.find()) {
@@ -681,6 +684,12 @@ public class ProfitManager {
     }
 
     public static Map<String, Long> getActiveDrops(String mode) {
+        String cacheKey = "active_" + mode;
+        long now = System.currentTimeMillis();
+        if (hudCache.containsKey(cacheKey) && (now - hudCacheTime.getOrDefault(cacheKey, 0L) < HUD_CACHE_VALIDITY_MS)) {
+            return hudCache.get(cacheKey);
+        }
+
         Map<String, Long> counts;
         if ("daily".equals(mode)) {
             counts = dailyCounts;
@@ -691,7 +700,7 @@ public class ProfitManager {
         }
 
         // Sort by total profit (count * price) descending
-        return counts.entrySet().stream()
+        Map<String, Long> result = counts.entrySet().stream()
                 .sorted((e1, e2) -> {
                     double p1 = getItemPrice(e1.getKey()) * e1.getValue();
                     double p2 = getItemPrice(e2.getKey()) * e2.getValue();
@@ -702,6 +711,10 @@ public class ProfitManager {
                         Map.Entry::getValue,
                         (v1, v2) -> v1,
                         LinkedHashMap::new));
+
+        hudCache.put(cacheKey, result);
+        hudCacheTime.put(cacheKey, now);
+        return result;
     }
 
     public static Map<String, Long> getCompactDrops() {
@@ -954,7 +967,7 @@ public class ProfitManager {
             net.minecraft.world.item.ItemStack stack = client.player.getInventory().getItem(i);
             if (stack == null || stack.isEmpty())
                 continue;
-            String name = stack.getHoverName().getString().replaceAll("\u00A7[0-9a-fk-or]", "").trim();
+            String name = ClientUtils.stripColor(stack.getHoverName().getString()).trim();
             if (BASE_CROPS.contains(name)) {
                 currentCounts.put(name, currentCounts.getOrDefault(name, 0L) + stack.getCount());
             }
@@ -1056,21 +1069,21 @@ public class ProfitManager {
         if (client.player == null)
             return;
         // If no pets are configured to track, show nothing in chat
-        if (MacroConfig.petTrackerList == null || MacroConfig.petTrackerList.isEmpty())
+        if (MacroConfig.petXpTrackedPets == null || MacroConfig.petXpTrackedPets.isEmpty())
             return;
 
         client.player.displayClientMessage(
                 net.minecraft.network.chat.Component.literal("§b[Pet XP Tracker] §fCurrently tracking:"), false);
 
-        for (String petConfig : MacroConfig.petTrackerList) {
+        for (String petConfig : MacroConfig.petXpTrackedPets) {
             MacroConfig.PetInfo info = new MacroConfig.PetInfo(petConfig);
-            long lvl1 = petLvl1Prices.getOrDefault(info.name, 0L);
-            long lvlMax = petMaxLvlPrices.getOrDefault(info.name, 0L);
+            long lvl1 = info.level1Price;
+            long lvlMax = info.maxLevelPrice;
             double pricePerXp = bazaarPrices.getOrDefault("Pet XP (" + info.name + ")", 0.0);
 
-            String lvl1Str = lvl1 > 0 ? String.format("%,d", lvl1) : "not found";
-            String lvlMaxStr = lvlMax > 0 ? String.format("%,d", lvlMax) : "not found";
-            String marginStr = pricePerXp > 0 ? String.format("%.3f", pricePerXp) : "not fetched";
+            String lvl1Str = lvl1 > 0 ? String.format("%,d", lvl1) : "not set";
+            String lvlMaxStr = lvlMax > 0 ? String.format("%,d", lvlMax) : "not set";
+            String marginStr = pricePerXp > 0 ? String.format("%.3f", pricePerXp) : "not configured";
 
             client.player.displayClientMessage(
                     net.minecraft.network.chat.Component.literal(
@@ -1090,10 +1103,7 @@ public class ProfitManager {
         addDrop("Pet XP (" + petName + ")", xpAmount);
     }
 
-    private static int startupPetPriceRetryCount = 3;
-
     public static void startStartupPriceFetch() {
-        startupPetPriceRetryCount = 0;
         fetchBazaarPrices();
     }
 
@@ -1102,32 +1112,6 @@ public class ProfitManager {
         new Thread(() -> {
             java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
             performFetchInternal(client);
-
-            // Startup retry logic: if any pet price is missing, retry up to 3 times every 5
-            // seconds
-            if (startupPetPriceRetryCount < 3) {
-                boolean missingAny = false;
-                for (String petConfig : MacroConfig.petTrackerList) {
-                    MacroConfig.PetInfo info = new MacroConfig.PetInfo(petConfig);
-                    if (!bazaarPrices.containsKey("Pet XP (" + info.name + ")")) {
-                        missingAny = true;
-                        break;
-                    }
-                }
-
-                if (missingAny) {
-                    startupPetPriceRetryCount++;
-                    System.out.println("[Ihanuat] Pet XP prices not fully fetched, retry " + startupPetPriceRetryCount
-                            + "/3 in 5s...");
-                    try {
-                        Thread.sleep(5000L);
-                    } catch (InterruptedException ignored) {
-                    }
-                    fetchBazaarPrices();
-                } else {
-                    startupPetPriceRetryCount = 3; // Success, don't retry again
-                }
-            }
         }).start();
     }
 
@@ -1154,8 +1138,7 @@ public class ProfitManager {
                 System.err.println("Failed to fetch bazaar price for " + itemName + ": " + e.getMessage());
             }
         }
-        // Also fetch Pet XP price
-        fetchPetXpPrice(client);
+        updateConfiguredPetXpPrices();
     }
 
     /**
@@ -1163,7 +1146,7 @@ public class ProfitManager {
      * deriving the coin value of a single XP point for each.
      */
     private static void fetchPetXpPrice(java.net.http.HttpClient http) {
-        for (String petConfig : MacroConfig.petTrackerList) {
+        for (String petConfig : MacroConfig.petXpTrackedPets) {
             MacroConfig.PetInfo info = new MacroConfig.PetInfo(petConfig);
             long[] table = PetXpTracker.getXpTable(info.rarity, info.maxLevel);
             final long TOTAL_XP = table[info.maxLevel];
@@ -1269,6 +1252,22 @@ public class ProfitManager {
         }
         idByNameCache.put(name, "");
         return null;
+    }
+
+    private static void updateConfiguredPetXpPrices() {
+        for (String petConfig : MacroConfig.petXpTrackedPets) {
+            MacroConfig.PetInfo info = new MacroConfig.PetInfo(petConfig);
+            long[] table = PetXpTracker.getXpTable(info.rarity, info.maxLevel);
+            long totalXp = table[info.maxLevel];
+            if (totalXp <= 0 || info.level1Price <= 0 || info.maxLevelPrice <= info.level1Price) {
+                bazaarPrices.remove("Pet XP (" + info.name + ")");
+                continue;
+            }
+            double pricePerXp = (double) (info.maxLevelPrice - info.level1Price) / totalXp;
+            if (pricePerXp > 0) {
+                bazaarPrices.put("Pet XP (" + info.name + ")", pricePerXp);
+            }
+        }
     }
 
     private static class BazaarApiResponse {
