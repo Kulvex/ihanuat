@@ -9,8 +9,8 @@ import com.ihanuat.mod.gui.ClickGui;
 import com.ihanuat.mod.gui.DynamicRestScreen;
 import com.ihanuat.mod.gui.MacroHudRenderer;
 import com.ihanuat.mod.modules.BookCombineManager;
-import com.ihanuat.mod.modules.ChatRuleManager;
 import com.ihanuat.mod.modules.BoosterCookieManager;
+import com.ihanuat.mod.modules.ChatRuleManager;
 import com.ihanuat.mod.modules.DynamicRestManager;
 import com.ihanuat.mod.modules.GearManager;
 import com.ihanuat.mod.modules.GeorgeManager;
@@ -20,12 +20,12 @@ import com.ihanuat.mod.modules.PestManager;
 import com.ihanuat.mod.modules.PestPrepSwapManager;
 import com.ihanuat.mod.modules.PestReturnManager;
 import com.ihanuat.mod.modules.ProfitManager;
+import com.ihanuat.mod.modules.QuitThresholdManager;
 import com.ihanuat.mod.modules.RecoveryManager;
 import com.ihanuat.mod.modules.RestartManager;
 import com.ihanuat.mod.modules.RodManager;
 import com.ihanuat.mod.modules.RotationManager;
 import com.ihanuat.mod.modules.VisitorManager;
-import com.ihanuat.mod.modules.QuitThresholdManager;
 import com.ihanuat.mod.modules.WardrobeManager;
 import com.ihanuat.mod.util.ClientUtils;
 
@@ -549,11 +549,12 @@ public class IhanuatClient implements ClientModInitializer {
                             if (PestManager.isCleaningInProgress || PestPrepSwapManager.isPrepSwapping)
                                 return;
 
-                            GearManager.swapToFarmingToolSync(client);
                             if (MacroConfig.autoRodReturnToFarm) {
                                 ClientUtils.sendDebugMessage(client, "Auto Rod: Executing rod cast during startup.");
                                 RodManager.executeRodSequence(client);
                             }
+                            GearManager.swapToFarmingToolSync(client);
+                            
                             if (PestManager.isCleaningInProgress || PestPrepSwapManager.isPrepSwapping)
                                 return;
 
