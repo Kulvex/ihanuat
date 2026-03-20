@@ -1510,8 +1510,22 @@ public class ClickGui extends Screen {
 
     void handleKeyPressed(int key, int scan, int mods) {
         if (activeSubPanel != null) {
+            if (key == 65 && (mods & GLFW.GLFW_MOD_CONTROL) != 0) {
+                if (activeSubPanel instanceof StringInputSubPanel sip) { sip.tf.selectAll(); return; }
+                if (activeSubPanel instanceof IntInputSubPanel iip) { iip.tf.selectAll(); return; }
+                if (activeSubPanel instanceof DoubleInputSubPanel dip) { dip.tf.selectAll(); return; }
+                if (activeSubPanel instanceof ListInputSubPanel lip) {
+                    Minecraft.getInstance().keyboardHandler.setClipboard(lip.value.toString()); return;
+                }
+                if (activeSubPanel instanceof ThemeLibrarySubPanel tls) {
+                    (tls.focusedField == 0 ? tls.tfName : tls.tfCode).selectAll(); return;
+                }
+                if (activeSubPanel instanceof ChatRulesSubPanel crs) {
+                    (crs.focusedField == 0 ? crs.tfName : crs.tfMatch).selectAll(); return;
+                }
+            }
             if (activeSubPanel.keyPressed(key, scan, mods)) {
-                if ((key == 257 || key == 335) && (mods & GLFW.GLFW_MOD_SHIFT) == 0) {
+                if ((key == 257 || key == 335) && (mods & GLFW.GLFW_MOD_SHIFT) == 0 && !(activeSubPanel instanceof ListInputSubPanel)) {
                     activeSubPanel = null;
                     save();
                 }
@@ -1763,7 +1777,7 @@ public class ClickGui extends Screen {
                 int hbx = x + PANEL_W - hlblW - 4;
                 boolean hbHov = mx >= hbx - 1 && mx <= hbx + hlblW + 3 && my >= y + 1 && my <= y + HEADER_H - 1;
                 boolean hbActive = title.equals(helperTitle);
-                if (hbHov || hbActive) fillRoundRect(g, hbx - 1, y + 2, hlblW + 4, HEADER_H - 4, 2, hbActive ? C_ON() : C_HOVER());
+                if (hbHov || hbActive) fillRoundRect(g, hbx - 1, y + 3, hlblW + 4, HEADER_H - 6, 2, hbActive ? C_ON() : C_HOVER());
                 MacroConfig.drawStyledText(g, font, hlbl, hbx + 1, y + HEADER_H / 2 - 4, hbActive || hbHov ? C_TXT() : C_DIM());
             }
             if (effectiveCollapsed) return;
@@ -1827,7 +1841,7 @@ public class ClickGui extends Screen {
                 String hlbl = "?";
                 int hlblW = font.width(hlbl);
                 int hbx = x + w - hlblW - 4;
-                if (hqActive || hqHov) fillRoundRect(g, hbx - 1, y + 1, hlblW + 4, h - 2, 2, hqActive ? C_ON() : C_HOVER());
+                if (hqActive || hqHov) fillRoundRect(g, hbx - 1, y + 3, hlblW + 4, h - 6, 2, hqActive ? C_ON() : C_HOVER());
                 MacroConfig.drawStyledText(g, font, hlbl, hbx + 1, y + h / 2 - 4, hqActive || hqHov ? C_TXT() : C_DIM());
             }
             int secArrowW = font.width("v") + 4;
@@ -2215,11 +2229,9 @@ public class ClickGui extends Screen {
         private boolean addingNew   = false;
         private boolean editingMode = false;
         private int     editingIndex = -1;
-        private String newName = "";
-        private String newCode = "";
-        private int focusedField = 0;
-        private boolean cursorVisible = true;
-        private long lastBlink = System.currentTimeMillis();
+        final TextField tfName = new TextField("");
+        final TextField tfCode = new TextField("");
+        int focusedField = 0;
 
         ThemeLibrarySubPanel(int mx, int my, int sw, int sh) {
             this.screenW = sw; this.screenH = sh;
@@ -2254,10 +2266,6 @@ public class ClickGui extends Screen {
 
         @Override
         public void render(GuiGraphics g, int mx, int my, net.minecraft.client.gui.Font font) {
-            if (System.currentTimeMillis() - lastBlink > 500) {
-                cursorVisible = !cursorVisible;
-                lastBlink = System.currentTimeMillis();
-            }
             int totalH = calcTotalHeight();
             panelY = Math.max(4, Math.min(panelY, screenH - totalH - 4));
 
@@ -2351,24 +2359,19 @@ public class ClickGui extends Screen {
                 cy += ROW_H + PAD;
 
                 MacroConfig.drawStyledText(g, font, "Name:", fx, cy + (ROW_H - 8) / 2, C_DIM());
-                drawTextField(g, font, fx + lw + 4, cy, fw - lw - 4, newName, focusedField == 0);
+                tfName.render(g, font, fx + lw + 4, cy, fw - lw - 4, ROW_H, focusedField == 0);
                 cy += ROW_H + PAD;
 
                 int _codeLabelY = cy + (ROW_H - 8) / 2;
                 MacroConfig.drawStyledText(g, font, "Code:", fx, _codeLabelY, C_DIM());
-                if (newCode.isBlank()) {
-                    float _sc = 0.55f;
+                if (tfCode.value.isBlank()) {
                     String _hint = "*optional";
-                    int _hw = (int)(font.width(_hint) * _sc);
+                    int _hw = font.width(_hint);
                     int _hx = fx + (font.width("Code:") - _hw) / 2;
                     int _hy = _codeLabelY + font.lineHeight + 3;
-                    g.pose().pushMatrix();
-                    g.pose().translate(_hx, _hy);
-                    g.pose().scale(0.55f, 0.55f);
-                    MacroConfig.drawStyledText(g, font, _hint, 0, 0, C_DIM());
-                    g.pose().popMatrix();
+                    MacroConfig.drawStyledText(g, font, _hint, _hx, _hy, darken(C_DIM(), 0x202020));
                 }
-                drawTextField(g, font, fx + lw + 4, cy, fw - lw - 4, newCode, focusedField == 1);
+                tfCode.render(g, font, fx + lw + 4, cy, fw - lw - 4, ROW_H, focusedField == 1);
                 cy += ROW_H + PAD;
 
 
@@ -2379,17 +2382,6 @@ public class ClickGui extends Screen {
                 fillRoundRect(g, saveX, cy, saveW, ROW_H, 2, saveHov ? C_BTN() : brighten(C_ON(), 0x111111));
                 MacroConfig.drawStyledText(g, font, "Save", saveX + (saveW - saveLbl) / 2, cy + (ROW_H - 8) / 2, C_TXT());
             }
-        }
-
-        private void drawTextField(GuiGraphics g, net.minecraft.client.gui.Font font,
-                                   int fx, int fy, int fw, String value, boolean focused) {
-            g.fill(fx, fy, fx + fw, fy + ROW_H, C_SBGR());
-            g.fill(fx, fy + ROW_H - 1, fx + fw, fy + ROW_H, focused ? C_ACC() : C_DIM());
-            g.enableScissor(fx + 2, fy, fx + fw - 2, fy + ROW_H);
-            String disp = value + (focused && cursorVisible ? "|" : "");
-            while (font.width(disp) > fw - 6 && disp.length() > 1) disp = disp.substring(1);
-            MacroConfig.drawStyledText(g, font, disp, fx + 3, fy + (ROW_H - 8) / 2, C_TXT());
-            g.disableScissor();
         }
 
         @Override
@@ -2409,7 +2401,7 @@ public class ClickGui extends Screen {
                     if (addingNew) {
                         editingMode = false; editingIndex = -1;
                         deleteMode = false; checkedForDelete.clear();
-                        newName = ""; newCode = ""; focusedField = 0;
+                        tfName.value = ""; tfName.cursor = 0; tfName.clearSelection(); tfCode.value = ""; tfCode.cursor = 0; tfCode.clearSelection(); focusedField = 0;
                     }
                     return true;
                 }
@@ -2447,7 +2439,7 @@ public class ClickGui extends Screen {
                             String code = encodeTheme();
                             MacroConfig.savedThemes.set(activeLibraryIndex, name + "|" + code);
                             previewOriginalCode = null;
-                            if (editingMode && editingIndex == activeLibraryIndex) newCode = code;
+                            if (editingMode && editingIndex == activeLibraryIndex) { tfCode.value = code; tfCode.cursor = code.length(); tfCode.clearSelection(); }
                             MacroConfig.save();
                         }
                         return true;
@@ -2483,8 +2475,8 @@ public class ClickGui extends Screen {
                                     editingMode = false; editingIndex = -1;
                                 } else {
                                     editingMode = true; editingIndex = i; addingNew = false;
-                                    newName = parts.length > 0 ? parts[0] : "";
-                                    newCode = parts.length > 1 ? parts[1] : "";
+                                    tfName.value = parts.length > 0 ? parts[0] : ""; tfName.cursor = tfName.value.length(); tfName.clearSelection();
+                                    tfCode.value = parts.length > 1 ? parts[1] : ""; tfCode.cursor = tfCode.value.length(); tfCode.clearSelection();
                                     focusedField = 0;
                                 }
                             } else if (parts.length > 1) {
@@ -2496,7 +2488,7 @@ public class ClickGui extends Screen {
                                     }
                                     activeLibraryIndex = i;
                                     applyThemeCode(parts[1]);
-                                    if (editingMode && editingIndex == i) newCode = parts[1];
+                                    if (editingMode && editingIndex == i) { tfCode.value = parts[1]; tfCode.cursor = tfCode.value.length(); tfCode.clearSelection(); }
                                 }
                             }
                         }
@@ -2531,19 +2523,19 @@ public class ClickGui extends Screen {
         }
 
         private void saveTheme() {
-            String name = newName.trim();
+            String name = tfName.value.trim();
             if (name.isEmpty()) return;
-            String code = newCode.isBlank() ? encodeDefaultTheme() : newCode.trim();
+            String code = tfCode.value.isBlank() ? encodeDefaultTheme() : tfCode.value.trim();
             String entry = name + "|" + code;
             if (editingMode && editingIndex >= 0 && editingIndex < MacroConfig.savedThemes.size()) {
                 MacroConfig.savedThemes.set(editingIndex, entry);
                 if (editingIndex == activeLibraryIndex) previewOriginalCode = null;
-                newCode = code;
+                tfCode.value = code; tfCode.cursor = code.length(); tfCode.clearSelection();
                 editingMode = false; editingIndex = -1;
             } else {
                 MacroConfig.savedThemes.add(0, entry);
                 addingNew = false;
-                newCode = code;
+                tfCode.value = code; tfCode.cursor = code.length(); tfCode.clearSelection();
                 if (activeLibraryIndex >= 0) activeLibraryIndex++;
             }
             MacroConfig.save();
@@ -2575,32 +2567,29 @@ public class ClickGui extends Screen {
             if ((key == 257 || key == 335) && (mods & GLFW.GLFW_MOD_SHIFT) == 0) { saveTheme(); return true; }
             if (key == 258) { focusedField = (focusedField + 1) % 2; return true; }
             if (key == 259) {
-                if (focusedField == 0 && !newName.isEmpty()) newName = newName.substring(0, newName.length() - 1);
-                else if (focusedField == 1 && !newCode.isEmpty()) newCode = newCode.substring(0, newCode.length() - 1);
+                TextField _tf = focusedField == 0 ? tfName : tfCode;
+                _tf.keyPressed(259, 0, 0, null);
                 return true;
             }
             if (key == 86 && (mods & GLFW.GLFW_MOD_CONTROL) != 0) {
                 String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
-                if (clip != null) appendToFocused(clip.replace("\r", "").replace("\n", ""));
+                if (clip != null) { TextField _tf = focusedField == 0 ? tfName : tfCode; _tf.insert(clip.replace("\r", "").replace("\n", "")); }
                 return true;
             }
-            if (key == GLFW.GLFW_KEY_SPACE) { appendToFocused(" "); return true; }
+            { TextField _tf = focusedField == 0 ? tfName : tfCode; if (_tf.keyPressed(key, scan, mods, null)) return true; }
+            if (key == GLFW.GLFW_KEY_SPACE) { (focusedField == 0 ? tfName : tfCode).insert(" "); return true; }
             Character c = fallbackCharFromKey(key, scan, mods);
-            if (c != null) { appendToFocused(String.valueOf(c)); return true; }
+            if (c != null) { (focusedField == 0 ? tfName : tfCode).insert(String.valueOf(c)); return true; }
             return false;
         }
 
         @Override
         public boolean charTyped(char c, int mods) {
             if (!isFormOpen() || c == '\r' || c == '\n') return false;
+            if ((mods & GLFW.GLFW_MOD_CONTROL) != 0) return true;
             if ((mods & GLFW.GLFW_MOD_SHIFT) != 0 && c >= 128) return true;
-            appendToFocused(String.valueOf(c));
+            (focusedField == 0 ? tfName : tfCode).insert(String.valueOf(c));
             return true;
-        }
-
-        private void appendToFocused(String s) {
-            if (focusedField == 0) newName += s;
-            else newCode += s;
         }
 
         @Override public void commit() {}
@@ -2650,8 +2639,8 @@ public class ClickGui extends Screen {
         private int dragOffX, dragOffY;
 
         private int editingIndex = -1;
-        private String editName      = "";
-        private String editMatchText = "";
+        final TextField tfName = new TextField("");
+        final TextField tfMatch = new TextField("");
         private static final com.ihanuat.mod.modules.ChatRuleManager.MatchType[] MATCH_TYPES = {
                 com.ihanuat.mod.modules.ChatRuleManager.MatchType.Contains,
                 com.ihanuat.mod.modules.ChatRuleManager.MatchType.Equals,
@@ -2662,7 +2651,7 @@ public class ClickGui extends Screen {
                 com.ihanuat.mod.modules.ChatRuleManager.MatchType.Contains;
         private boolean editCaseSensitive = false;
         private boolean editEnabled       = true;
-        private int focusedField = 0;
+        int focusedField = 0;
         private boolean cursorVisible = true;
         private long lastBlink = System.currentTimeMillis();
 
@@ -2694,10 +2683,6 @@ public class ClickGui extends Screen {
 
         @Override
         public void render(GuiGraphics g, int mx, int my, net.minecraft.client.gui.Font font) {
-            if (System.currentTimeMillis() - lastBlink > 500) {
-                cursorVisible = !cursorVisible;
-                lastBlink = System.currentTimeMillis();
-            }
             int totalH = calcTotalHeight();
             panelY = Math.max(4, Math.min(panelY, screenH - totalH - 4));
 
@@ -2779,12 +2764,12 @@ public class ClickGui extends Screen {
 
             MacroConfig.drawStyledText(g, font, "Name:", fx, cy + (ROW_H - 8) / 2, C_DIM());
             int nfx = fx + 40;
-            drawTextField(g, font, nfx, cy, fw - 40, editName, focusedField == 0);
+            tfName.render(g, font, nfx, cy, fw - 40, ROW_H, focusedField == 0);
             cy += ROW_H + PAD;
 
             MacroConfig.drawStyledText(g, font, "Pattern:", fx, cy + (ROW_H - 8) / 2, C_DIM());
             int mfx = fx + 52;
-            drawTextField(g, font, mfx, cy, fw - 52, editMatchText, focusedField == 1);
+            tfMatch.render(g, font, mfx, cy, fw - 52, ROW_H, focusedField == 1);
             cy += ROW_H + PAD;
 
             int ox = fx;
@@ -2896,8 +2881,8 @@ public class ClickGui extends Screen {
                     editingIndex = -1;
                 } else {
                     editingIndex      = -2;
-                    editName          = "";
-                    editMatchText     = "";
+                    tfName.value = ""; tfName.cursor = 0; tfName.clearSelection();
+                    tfMatch.value = ""; tfMatch.cursor = 0; tfMatch.clearSelection();
                     editMatchType     = com.ihanuat.mod.modules.ChatRuleManager.MatchType.Contains;
                     editCaseSensitive = false;
                     editEnabled       = true;
@@ -2979,8 +2964,8 @@ public class ClickGui extends Screen {
             com.ihanuat.mod.modules.ChatRuleManager.ChatRule rule =
                     new com.ihanuat.mod.modules.ChatRuleManager.ChatRule(
                             MacroConfig.chatRules.get(idx));
-            editName          = rule.name;
-            editMatchText     = rule.matchText;
+            tfName.value = rule.name; tfName.cursor = tfName.value.length(); tfName.clearSelection();
+            tfMatch.value = rule.matchText; tfMatch.cursor = tfMatch.value.length(); tfMatch.clearSelection();
             editMatchType = rule.matchType == com.ihanuat.mod.modules.ChatRuleManager.MatchType.Regex
                     ? com.ihanuat.mod.modules.ChatRuleManager.MatchType.Contains : rule.matchType;
             editCaseSensitive = rule.caseSensitive;
@@ -2990,10 +2975,10 @@ public class ClickGui extends Screen {
         }
 
         private void saveRule() {
-            if (editName.isBlank()) return;
-            String encoded = editName + "|" + editMatchType.name() + "|"
+            if (tfName.value.isBlank()) return;
+            String encoded = tfName.value + "|" + editMatchType.name() + "|"
                     + editCaseSensitive + "|true|"
-                    + editEnabled + "|" + editMatchText;
+                    + editEnabled + "|" + tfMatch.value;
             List<String> rules = MacroConfig.chatRules;
             if (editingIndex == -2)                                    rules.add(encoded);
             else if (editingIndex >= 0 && editingIndex < rules.size()) rules.set(editingIndex, encoded);
@@ -3013,19 +2998,16 @@ public class ClickGui extends Screen {
             if (key == 257 || key == 335) { saveRule(); return true; }
             if (key == 258) { focusedField = (focusedField + 1) % 2; return true; }
             if (key == 259) {
-                if (focusedField == 0 && !editName.isEmpty())
-                    editName = editName.substring(0, editName.length() - 1);
-                else if (focusedField == 1 && !editMatchText.isEmpty())
-                    editMatchText = editMatchText.substring(0, editMatchText.length() - 1);
+                (focusedField == 0 ? tfName : tfMatch).keyPressed(259, 0, 0, null);
                 return true;
             }
             if (key == 86 && (mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) != 0) {
                 String clip = net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard();
-                if (clip != null) appendToFocused(clip.replace("\r", "").replace("\n", " "));
+                if (clip != null) { TextField _tf = focusedField == 0 ? tfName : tfMatch; _tf.insert(clip.replace("\r", "").replace("\n", " ")); }
                 return true;
             }
             Character c = fallbackCharFromKey(key, scan, mods);
-            if (c != null) { appendToFocused(String.valueOf(c)); return true; }
+            if (c != null) { (focusedField == 0 ? tfName : tfMatch).insert(String.valueOf(c)); return true; }
             return false;
         }
 
@@ -3033,14 +3015,10 @@ public class ClickGui extends Screen {
         public boolean charTyped(char c, int mods) {
             if (!isEditing()) return false;
             if (c == '\r' || c == '\n') return true;
+            if ((mods & GLFW.GLFW_MOD_CONTROL) != 0) return true;
             if ((mods & GLFW.GLFW_MOD_SHIFT) != 0 && c >= 128) return true;
-            appendToFocused(String.valueOf(c));
+            (focusedField == 0 ? tfName : tfMatch).insert(String.valueOf(c));
             return true;
-        }
-
-        private void appendToFocused(String s) {
-            if (focusedField == 0) editName      += s;
-            else                   editMatchText += s;
         }
 
         @Override public void commit() {}
@@ -3336,6 +3314,7 @@ public class ClickGui extends Screen {
                     editingHex = false;
                     return true;
                 }
+                if (key == 65 && (mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) != 0) { hexBuffer = ""; return true; }
                 if (key == 86 && (mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) != 0) {
                     String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
                     if (clip != null) hexBuffer += clip.replaceAll("[^0-9a-fA-F#]", "");
@@ -3387,16 +3366,121 @@ public class ClickGui extends Screen {
         }
     }
 
+    static class TextField {
+        String value;
+        int cursor = 0;
+        int selStart = -1, selEnd = -1;
+        boolean cursorVisible = true;
+        long lastBlink = System.currentTimeMillis();
+
+        TextField(String initial) { this.value = initial; this.cursor = initial.length(); }
+
+        boolean hasSelection() { return selStart >= 0 && selEnd >= 0 && selStart != selEnd; }
+        int selMin() { return Math.min(selStart, selEnd); }
+        int selMax() { return Math.max(selStart, selEnd); }
+        String selected() { return hasSelection() ? value.substring(selMin(), selMax()) : ""; }
+
+        void selectAll() { selStart = 0; selEnd = value.length(); cursor = value.length(); }
+        void clearSelection() { selStart = -1; selEnd = -1; }
+
+        void deleteSelection() {
+            if (!hasSelection()) return;
+            int lo = selMin(), hi = selMax();
+            value = value.substring(0, lo) + value.substring(hi);
+            cursor = lo;
+            clearSelection();
+        }
+
+        void insert(String s) {
+            if (hasSelection()) deleteSelection();
+            value = value.substring(0, cursor) + s + value.substring(cursor);
+            cursor += s.length();
+        }
+
+        void moveCursor(int pos) { cursor = Math.max(0, Math.min(value.length(), pos)); clearSelection(); }
+
+        boolean keyPressed(int key, int scan, int mods, java.util.function.Predicate<Character> charFilter) {
+            boolean ctrl = (mods & GLFW.GLFW_MOD_CONTROL) != 0;
+            if (key == 65 && ctrl) { selectAll(); return true; }
+            if (key == 67 && ctrl) {
+                String sel = hasSelection() ? selected() : value;
+                if (!sel.isEmpty()) Minecraft.getInstance().keyboardHandler.setClipboard(sel);
+                return true;
+            }
+            if (key == 86 && ctrl) {
+                String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
+                if (clip != null) insert(clip.replaceAll("[\\r\\n]", ""));
+                return true;
+            }
+            if (key == 259) {
+                if (hasSelection()) deleteSelection();
+                else if (cursor > 0) { value = value.substring(0, cursor - 1) + value.substring(cursor); cursor--; }
+                return true;
+            }
+            if (key == GLFW.GLFW_KEY_LEFT)  { moveCursor(cursor - 1); return true; }
+            if (key == GLFW.GLFW_KEY_RIGHT) { moveCursor(cursor + 1); return true; }
+            if (key == GLFW.GLFW_KEY_HOME)  { moveCursor(0); return true; }
+            if (key == GLFW.GLFW_KEY_END)   { moveCursor(value.length()); return true; }
+            return false;
+        }
+
+        boolean charTyped(char ch, java.util.function.Predicate<Character> filter) {
+            if (filter != null && !filter.test(ch)) return false;
+            insert(String.valueOf(ch));
+            return true;
+        }
+
+        void tickBlink() {
+            long now = System.currentTimeMillis();
+            if (now - lastBlink > 500) { cursorVisible = !cursorVisible; lastBlink = now; }
+        }
+
+        void render(GuiGraphics g, net.minecraft.client.gui.Font font, int fx, int fy, int fw, int fh) {
+            render(g, font, fx, fy, fw, fh, true);
+        }
+
+        void render(GuiGraphics g, net.minecraft.client.gui.Font font, int fx, int fy, int fw, int fh, boolean focused) {
+            if (focused) tickBlink();
+            g.fill(fx, fy, fx + fw, fy + fh, C_SBGR());
+            g.fill(fx, fy + fh - 1, fx + fw, fy + fh, focused ? C_ACC() : C_DIM());
+            int textY = fy + (fh - 8) / 2;
+            int textX = fx + 3;
+            int maxW = fw - 6;
+
+            String pre = value.substring(0, cursor);
+            int fullPreW = font.width(pre);
+            int scrollX = Math.max(0, fullPreW - maxW + 2);
+
+            g.enableScissor(fx, fy, fx + fw, fy + fh);
+
+            if (hasSelection()) {
+                int lo = selMin(), hi = selMax();
+                String sPre = value.substring(0, lo);
+                String sSel = value.substring(lo, hi);
+                int selX0 = textX + font.width(sPre) - scrollX;
+                int selX1 = selX0 + font.width(sSel);
+                g.fill(Math.max(fx, selX0), fy + 1, Math.min(fx + fw, selX1), fy + fh - 1, 0x664488FF);
+            }
+
+            MacroConfig.drawStyledText(g, font, value, textX - scrollX, textY, C_TXT());
+
+            if (focused && cursorVisible && !hasSelection()) {
+                int cx = textX + fullPreW - scrollX;
+                g.fill(cx, textY - 1, cx + 1, textY + 9, C_TXT());
+            }
+
+            g.disableScissor();
+        }
+    }
+
     static class StringInputSubPanel implements SubPanel {
         final String label;
-        String value;
+        final TextField tf;
         final String defaultValue;
         final Consumer<String> setter;
         final String placeholder;
         int w = -1;
         final int x, y, h = 50, screenW;
-        boolean cursorVisible = true;
-        long lastBlink = System.currentTimeMillis();
 
         StringInputSubPanel(int mx, int my, int sw, int sh, String label, String initial, Consumer<String> setter) {
             this(mx, my, sw, sh, label, initial, initial, setter, "");
@@ -3405,7 +3489,7 @@ public class ClickGui extends Screen {
             this(mx, my, sw, sh, label, initial, defaultVal, setter, "");
         }
         StringInputSubPanel(int mx, int my, int sw, int sh, String label, String initial, String defaultVal, Consumer<String> setter, String placeholder) {
-            this.label = label; this.value = initial; this.defaultValue = defaultVal;
+            this.label = label; this.tf = new TextField(initial); this.defaultValue = defaultVal;
             this.setter = setter; this.placeholder = placeholder == null ? "" : placeholder;
             this.screenW = sw; this.x = mx; this.y = Math.min(my, sh - h - 4);
         }
@@ -3427,14 +3511,12 @@ public class ClickGui extends Screen {
             fillRoundRect(g, rx, y, w, h, 3, C_SPBG());
             MacroConfig.drawStyledText(g, font, label, rx + 5, y + 6, C_TXT());
             MacroConfig.drawStyledText(g, font, "reset", resetBtnX(font), y + 4, overReset(mx, my, font) ? 0xFFFF5555 : C_DIM());
-            g.fill(rx + 4, y + 20, rx + w - 4, y + 42, C_SBGR());
-            g.fill(rx + 4, y + 42, rx + w - 4, y + 43, C_ACC());
-            if (System.currentTimeMillis() - lastBlink > 500) { cursorVisible = !cursorVisible; lastBlink = System.currentTimeMillis(); }
-            if (value.isEmpty() && !placeholder.isEmpty()) {
+            if (tf.value.isEmpty() && !placeholder.isEmpty()) {
+                g.fill(rx + 4, y + 20, rx + w - 4, y + 42, C_SBGR());
+                g.fill(rx + 4, y + 42, rx + w - 4, y + 43, C_ACC());
                 MacroConfig.drawStyledText(g, font, placeholder, rx + 6, y + 26, C_DIM());
             } else {
-                String disp = value.length() > 38 ? value.substring(value.length() - 38) : value;
-                MacroConfig.drawStyledText(g, font, disp + (cursorVisible ? "|" : ""), rx + 6, y + 26, C_TXT());
+                tf.render(g, font, rx + 4, y + 20, w - 8, 22);
             }
         }
         @Override public boolean contains(int mx, int my) {
@@ -3442,45 +3524,44 @@ public class ClickGui extends Screen {
             int rx = rx(); return mx >= rx - 2 && mx <= rx + w + 2 && my >= y - 2 && my <= y + h + 2;
         }
         @Override public boolean mouseClicked(int mx, int my, int btn, net.minecraft.client.gui.Font font) {
-            if (overReset(mx, my, font)) { value = defaultValue; commit(); }
+            if (overReset(mx, my, font)) { tf.value = defaultValue; tf.cursor = tf.value.length(); tf.clearSelection(); commit(); }
             return true;
         }
         @Override public void scroll(int dir) {}
         @Override public boolean keyPressed(int key, int scan, int mods) {
-            if (key == 259 && !value.isEmpty()) { value = value.substring(0, value.length() - 1); return true; }
             if (key == 257 || key == 335) { commit(); return true; }
-            if (key == 86 && (mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) != 0) {
-                String clip = Minecraft.getInstance().keyboardHandler.getClipboard();
-                if (clip != null) value += clip; return true;
-            }
-            Character c = fallbackCharFromKey(key, scan, mods);
-            if (c != null) { value += c; return true; }
+            if (key == 65 && (mods & GLFW.GLFW_MOD_CONTROL) != 0) return true;
+            if (tf.keyPressed(key, 0, mods, null)) return true;
+            Character ch = fallbackCharFromKey(key, 0, mods);
+            if (ch != null) { tf.charTyped(ch, null); return true; }
             return false;
         }
         @Override public boolean charTyped(char c, int mods) {
+            if ((mods & GLFW.GLFW_MOD_CONTROL) != 0) return true;
             if ((mods & GLFW.GLFW_MOD_SHIFT) != 0 && c >= 128) return true;
-            value += c; return true;
+            tf.charTyped(c, null); return true;
         }
-        @Override public void commit() { setter.accept(value); }
+        @Override public void commit() { tf.clearSelection(); setter.accept(tf.value); }
     }
 
     static class IntInputSubPanel implements SubPanel {
         final String label;
-        String raw;
+        final TextField tf;
         final String defaultRaw;
         final int min, max;
         final Consumer<Integer> setter;
         int w = -1;
         final int x, y, h = 50, screenW;
-        boolean cursorVisible = true;
-        long lastBlink = System.currentTimeMillis();
 
         IntInputSubPanel(int mx, int my, int sw, int sh, String label, int initial, String defaultVal, int min, int max, Consumer<Integer> setter) {
-            this.label = label; this.raw = String.valueOf(initial); this.defaultRaw = defaultVal;
+            this.label = label; this.tf = new TextField(String.valueOf(initial)); this.defaultRaw = defaultVal;
             this.min = min; this.max = max; this.setter = setter;
             this.screenW = sw; this.x = mx; this.y = Math.min(my, sh - h - 4);
         }
 
+        private java.util.function.Predicate<Character> intFilter() {
+            return ch -> Character.isDigit(ch) || (ch == '-' && tf.value.isEmpty() && !tf.hasSelection());
+        }
         private void ensureWidth(net.minecraft.client.gui.Font font) {
             if (w < 0) {
                 String range = min == Integer.MIN_VALUE ? "" : "[" + min + "-" + max + "]";
@@ -3503,69 +3584,57 @@ public class ClickGui extends Screen {
             String range = min == Integer.MIN_VALUE ? "" : "[" + min + "-" + max + "]";
             MacroConfig.drawStyledText(g, font, range, rx + w - font.width(range) - font.width("reset") - 18, y + 6, C_DIM());
             MacroConfig.drawStyledText(g, font, "reset", resetBtnX(font), y + 4, overReset(mx, my, font) ? 0xFFFF5555 : C_DIM());
-            g.fill(rx + 4, y + 20, rx + w - 4, y + 42, C_SBGR());
-            g.fill(rx + 4, y + 42, rx + w - 4, y + 43, C_ACC());
-            if (System.currentTimeMillis() - lastBlink > 500) { cursorVisible = !cursorVisible; lastBlink = System.currentTimeMillis(); }
-            MacroConfig.drawStyledText(g, font, raw + (cursorVisible ? "|" : ""), rx + 6, y + 26, C_TXT());
+            tf.render(g, font, rx + 4, y + 20, w - 8, 22);
         }
         @Override public boolean contains(int mx, int my) {
             if (w < 0) return false;
             int rx = rx(); return mx >= rx - 2 && mx <= rx + w + 2 && my >= y - 2 && my <= y + h + 2;
         }
         @Override public boolean mouseClicked(int mx, int my, int btn, net.minecraft.client.gui.Font font) {
-            if (overReset(mx, my, font)) { raw = defaultRaw; commit(); }
+            if (overReset(mx, my, font)) { tf.value = defaultRaw; tf.cursor = tf.value.length(); tf.clearSelection(); commit(); }
             return true;
         }
         @Override public void scroll(int dir) {}
         @Override public boolean keyPressed(int key, int scan, int mods) {
-            if (key == 259 && !raw.isEmpty()) { raw = raw.substring(0, raw.length() - 1); return true; }
             if (key == 257 || key == 335) { commit(); return true; }
-            if (key == 86 && (mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) != 0) {
-                String clip = net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard();
-                if (clip != null) for (char ch : clip.toCharArray()) charTyped(ch, 0);
-                return true;
-            }
-            if ((mods & org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL) == 0) {
-                String name = org.lwjgl.glfw.GLFW.glfwGetKeyName(key, scan);
-                if (name != null && name.length() == 1) {
-                    char c = name.charAt(0);
-                    if (Character.isDigit(c) || (c == '-' && raw.isEmpty())) { raw += c; return true; }
-                }
-                if ((mods & org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT) != 0 && key >= 48 && key <= 57) {
-                    char c = (char) key;
-                    raw += c; return true;
-                }
-                if (key >= 320 && key <= 329) {
-                    raw += (char)('0' + key - 320); return true;
-                }
+            if (tf.keyPressed(key, scan, mods, intFilter())) return true;
+            if ((mods & GLFW.GLFW_MOD_CONTROL) == 0) {
+                String name = GLFW.glfwGetKeyName(key, scan);
+                if (name != null && name.length() == 1) { tf.charTyped(name.charAt(0), intFilter()); return true; }
+                if ((mods & GLFW.GLFW_MOD_SHIFT) != 0 && key >= 48 && key <= 57) { tf.charTyped((char) key, intFilter()); return true; }
+                if (key >= 320 && key <= 329) { tf.charTyped((char)('0' + key - 320), intFilter()); return true; }
             }
             return false;
         }
         @Override public boolean charTyped(char c, int mods) {
-            if (Character.isDigit(c) || (c == '-' && raw.isEmpty())) { raw += c; return true; }
-            return false;
+            if ((mods & GLFW.GLFW_MOD_CONTROL) != 0) return true;
+            tf.charTyped(c, intFilter()); return true;
         }
         @Override public void commit() {
-            try { int v = Integer.parseInt(raw); setter.accept(min == Integer.MIN_VALUE ? v : Math.max(min, Math.min(max, v))); }
+            tf.clearSelection();
+            try { int v = Integer.parseInt(tf.value); setter.accept(min == Integer.MIN_VALUE ? v : Math.max(min, Math.min(max, v))); }
             catch (NumberFormatException ignored) {}
         }
     }
 
     static class DoubleInputSubPanel implements SubPanel {
         final String label;
-        String raw;
+        final TextField tf;
         final String defaultRaw;
         final Consumer<Double> setter;
         int w = -1;
         final int x, y, h = 50, screenW;
-        boolean cursorVisible = true;
-        long lastBlink = System.currentTimeMillis();
 
         DoubleInputSubPanel(int mx, int my, int sw, int sh, String label, double initial, String defaultVal, Consumer<Double> setter) {
-            this.label = label; this.raw = trimDouble(initial); this.defaultRaw = defaultVal;
+            this.label = label; this.tf = new TextField(trimDouble(initial)); this.defaultRaw = defaultVal;
             this.setter = setter; this.screenW = sw; this.x = mx; this.y = Math.min(my, sh - h - 4);
         }
 
+        private java.util.function.Predicate<Character> dblFilter() {
+            return ch -> Character.isDigit(ch)
+                    || (ch == '-' && tf.value.isEmpty() && !tf.hasSelection())
+                    || (ch == '.' && !tf.value.contains("."));
+        }
         private void ensureWidth(net.minecraft.client.gui.Font font) {
             if (w < 0) w = Math.max(200, font.width(label) + 80);
         }
@@ -3583,52 +3652,36 @@ public class ClickGui extends Screen {
             fillRoundRect(g, rx, y, w, h, 3, C_SPBG());
             MacroConfig.drawStyledText(g, font, label, rx + 5, y + 6, C_TXT());
             MacroConfig.drawStyledText(g, font, "reset", resetBtnX(font), y + 4, overReset(mx, my, font) ? 0xFFFF5555 : C_DIM());
-            g.fill(rx + 4, y + 20, rx + w - 4, y + 42, C_SBGR());
-            g.fill(rx + 4, y + 42, rx + w - 4, y + 43, C_ACC());
-            if (System.currentTimeMillis() - lastBlink > 500) { cursorVisible = !cursorVisible; lastBlink = System.currentTimeMillis(); }
-            MacroConfig.drawStyledText(g, font, raw + (cursorVisible ? "|" : ""), rx + 6, y + 26, C_TXT());
+            tf.render(g, font, rx + 4, y + 20, w - 8, 22);
         }
         @Override public boolean contains(int mx, int my) {
             if (w < 0) return false;
             int rx = rx(); return mx >= rx - 2 && mx <= rx + w + 2 && my >= y - 2 && my <= y + h + 2;
         }
         @Override public boolean mouseClicked(int mx, int my, int btn, net.minecraft.client.gui.Font font) {
-            if (overReset(mx, my, font)) { raw = defaultRaw; commit(); }
+            if (overReset(mx, my, font)) { tf.value = defaultRaw; tf.cursor = tf.value.length(); tf.clearSelection(); commit(); }
             return true;
         }
         @Override public void scroll(int dir) {}
         @Override public boolean keyPressed(int key, int scan, int mods) {
-            if (key == 259 && !raw.isEmpty()) { raw = raw.substring(0, raw.length() - 1); return true; }
             if (key == 257 || key == 335) { commit(); return true; }
-            if (key == 86 && (mods & GLFW.GLFW_MOD_CONTROL) != 0) {
-                String clip = net.minecraft.client.Minecraft.getInstance().keyboardHandler.getClipboard();
-                if (clip != null) for (char ch : clip.toCharArray()) charTyped(ch, 0);
-                return true;
-            }
+            if (tf.keyPressed(key, scan, mods, dblFilter())) return true;
             if ((mods & GLFW.GLFW_MOD_CONTROL) == 0) {
                 String name = GLFW.glfwGetKeyName(key, scan);
-                if (name != null && name.length() == 1) {
-                    char c = name.charAt(0);
-                    if (Character.isDigit(c) || (c == '-' && raw.isEmpty()) || (c == '.' && !raw.contains("."))) { raw += c; return true; }
-                }
-                if ((mods & GLFW.GLFW_MOD_SHIFT) != 0 && key >= 48 && key <= 57) {
-                    raw += (char) key; return true;
-                }
-                if (key >= 320 && key <= 329) {
-                    raw += (char)('0' + key - 320); return true;
-                }
-                if ((key == 330 || key == 46) && !raw.contains(".")) {
-                    raw += '.'; return true;
-                }
+                if (name != null && name.length() == 1) { tf.charTyped(name.charAt(0), dblFilter()); return true; }
+                if ((mods & GLFW.GLFW_MOD_SHIFT) != 0 && key >= 48 && key <= 57) { tf.charTyped((char) key, dblFilter()); return true; }
+                if (key >= 320 && key <= 329) { tf.charTyped((char)('0' + key - 320), dblFilter()); return true; }
+                if ((key == 330 || key == 46) && !tf.value.contains(".")) { tf.charTyped('.', dblFilter()); return true; }
             }
             return false;
         }
         @Override public boolean charTyped(char c, int mods) {
-            if (Character.isDigit(c) || (c == '-' && raw.isEmpty()) || (c == '.' && !raw.contains("."))) { raw += c; return true; }
-            return false;
+            if ((mods & GLFW.GLFW_MOD_CONTROL) != 0) return true;
+            tf.charTyped(c, dblFilter()); return true;
         }
         @Override public void commit() {
-            try { setter.accept(Double.parseDouble(raw)); } catch (NumberFormatException ignored) {}
+            tf.clearSelection();
+            try { setter.accept(Double.parseDouble(tf.value)); } catch (NumberFormatException ignored) {}
         }
         private static String trimDouble(double value) {
             String formatted = String.format("%.2f", value);
@@ -3784,8 +3837,8 @@ public class ClickGui extends Screen {
             }
             if (key == 261 && cursorIndex < value.length()) { value.deleteCharAt(cursorIndex); ensureCursorVisible(font); return true; }
             if (key == 257 || key == 335) {
-                if ((mods & GLFW.GLFW_MOD_SHIFT) != 0) { insertText("\n"); ensureCursorVisible(font); }
-                else { commit(); }
+                if ((mods & GLFW.GLFW_MOD_SHIFT) != 0) { commit(); }
+                else { insertText("\n"); ensureCursorVisible(font); }
                 return true;
             }
             if (key == GLFW.GLFW_KEY_LEFT)  { moveCursorHorizontal(-1); ensureCursorVisible(font); return true; }
@@ -3802,6 +3855,7 @@ public class ClickGui extends Screen {
         }
         @Override public boolean charTyped(char c, int mods) {
             if (c == '\r') return true;
+            if ((mods & GLFW.GLFW_MOD_CONTROL) != 0) return true;
             if ((mods & GLFW.GLFW_MOD_SHIFT) != 0 && c >= 128) return true;
             insertText(String.valueOf(c)); ensureCursorVisible(Minecraft.getInstance().font); return true;
         }
