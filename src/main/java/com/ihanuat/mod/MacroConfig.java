@@ -221,6 +221,7 @@ public class MacroConfig {
     public static java.util.List<String> petTrackerList = new java.util.ArrayList<>(DEFAULT_PET_TRACKER_LIST);
     public static final java.util.List<String> DEFAULT_CHAT_RULES = java.util.Collections.emptyList();
     public static java.util.List<String> chatRules = new java.util.ArrayList<>(DEFAULT_CHAT_RULES);
+    public static java.util.List<String> savedThemes = new java.util.ArrayList<>();
 
     // HUD layout
     public static int hudX = DEFAULT_HUD_X;
@@ -550,6 +551,7 @@ public class MacroConfig {
         d.petXpTrackedPets = new java.util.ArrayList<>(petXpTrackedPets);
         d.petTrackerList = new java.util.ArrayList<>(petTrackerList);
         d.chatRules = new java.util.ArrayList<>(chatRules);
+        d.savedThemes = new java.util.ArrayList<>(savedThemes);
         d.hudX = hudX; d.hudY = hudY; d.hudScale = hudScale; d.showHud = showHud;
         d.showTotalToday = showTotalToday;
         d.sessionProfitHudX = sessionProfitHudX; d.sessionProfitHudY = sessionProfitHudY;
@@ -689,6 +691,7 @@ public class MacroConfig {
             if (d.petXpTrackedPets != null) petXpTrackedPets = new java.util.ArrayList<>(d.petXpTrackedPets);
             if (d.petTrackerList != null) petTrackerList = new java.util.ArrayList<>(d.petTrackerList);
             if (d.chatRules != null) chatRules = new java.util.ArrayList<>(d.chatRules);
+            if (d.savedThemes != null) savedThemes = new java.util.ArrayList<>(d.savedThemes);
             hudX = d.hudX; hudY = d.hudY;
             hudScale = d.hudScale > 0 ? d.hudScale : DEFAULT_HUD_SCALE;
             showHud = d.showHud;
@@ -872,6 +875,7 @@ public class MacroConfig {
         java.util.List<String> petXpTrackedPets = new java.util.ArrayList<>(DEFAULT_PET_TRACKER_LIST);
         java.util.List<String> petTrackerList = new java.util.ArrayList<>(DEFAULT_PET_TRACKER_LIST);
         java.util.List<String> chatRules = new java.util.ArrayList<>(DEFAULT_CHAT_RULES);
+        java.util.List<String> savedThemes = new java.util.ArrayList<>();
         int hudX = DEFAULT_HUD_X, hudY = DEFAULT_HUD_Y;
         float hudScale = DEFAULT_HUD_SCALE;
         boolean showHud = DEFAULT_SHOW_HUD;
