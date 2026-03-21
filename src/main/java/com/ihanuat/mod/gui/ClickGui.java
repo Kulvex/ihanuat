@@ -260,6 +260,7 @@ public class ClickGui extends Screen {
                 MacroConfig.hudStateVisitingColor   = (int) Long.parseLong(parts[20], 16);
                 MacroConfig.hudStateAutosellingColor = (int) Long.parseLong(parts[21], 16);
                 MacroConfig.hudStateSprayingColor   = (int) Long.parseLong(parts[22], 16);
+                MacroConfig.themeTextStyle = MacroConfig.TextStyle.NONE;
             } else {
                 String[] parts = s.split(",");
                 if (parts.length != 9) return false;
@@ -272,6 +273,9 @@ public class ClickGui extends Screen {
                 MacroConfig.themeToggleOff   = (int) Long.parseLong(parts[6], 16);
                 MacroConfig.themeSliderFill  = (int) Long.parseLong(parts[7], 16);
                 MacroConfig.themeButtonHover = (int) Long.parseLong(parts[8], 16);
+                MacroConfig.themeTextStyle = MacroConfig.TextStyle.NONE;
+                MacroConfig.themeOutlineSize = 1;
+                MacroConfig.themeShadowOpacity = 180;
             }
             MacroConfig.save();
             return true;
@@ -1029,6 +1033,7 @@ public class ClickGui extends Screen {
             case "Auto Visitor"        -> "autovisitor";
             case "Auto Sell"           -> "autosell";
             case "Wardrobe Swap"     -> "wardrobeswap";
+            case "Profit Calculator"   -> "profitcalculator";
             default                    -> null;
         };
         if (newTopic != null && !newTopic.equals(helperTopic)) {
@@ -1771,7 +1776,7 @@ public class ClickGui extends Screen {
                 int hbx = x + PANEL_W - hlblW - 4;
                 boolean hbHov = mx >= hbx - 1 && mx <= hbx + hlblW + 3 && my >= y + 1 && my <= y + HEADER_H - 1;
                 boolean hbActive = title.equals(helperTitle);
-                if (hbHov || hbActive) fillRoundRect(g, hbx - 1, y + 3, hlblW + 4, HEADER_H - 6, 2, hbActive ? C_ON() : C_HOVER());
+                if (hbHov || hbActive) fillRoundRect(g, hbx - 1, y + 3, hlblW + 3, HEADER_H - 6, 2, hbActive ? C_ON() : C_HOVER());
                 MacroConfig.drawStyledText(g, font, hlbl, hbx + 1, y + HEADER_H / 2 - 4, hbActive || hbHov ? C_TXT() : C_DIM());
             }
             if (effectiveCollapsed) return;
@@ -1835,7 +1840,7 @@ public class ClickGui extends Screen {
                 String hlbl = "?";
                 int hlblW = font.width(hlbl);
                 int hbx = x + w - hlblW - 4;
-                if (hqActive || hqHov) fillRoundRect(g, hbx - 1, y + 3, hlblW + 4, h - 6, 2, hqActive ? C_ON() : C_HOVER());
+                if (hqActive || hqHov) fillRoundRect(g, hbx - 1, y + 3, hlblW + 3, h - 6, 2, hqActive ? C_ON() : C_HOVER());
                 MacroConfig.drawStyledText(g, font, hlbl, hbx + 1, y + h / 2 - 4, hqActive || hqHov ? C_TXT() : C_DIM());
             }
             int secArrowW = font.width("v") + 4;
@@ -2502,9 +2507,9 @@ public class ClickGui extends Screen {
                 int tfx = fx + lw + 4;
                 int tfw = fw - lw - 4;
                 int cy  = fy + PAD + ROW_H + PAD;
-                if (mx >= tfx && mx <= tfx + tfw && my >= cy && my < cy + ROW_H) { focusedField = 0; return true; }
+                if (mx >= tfx && mx <= tfx + tfw && my >= cy && my < cy + ROW_H) { tfName.clearSelection(); tfCode.clearSelection(); focusedField = 0; return true; }
                 cy += ROW_H + PAD;
-                if (mx >= tfx && mx <= tfx + tfw && my >= cy && my < cy + ROW_H) { focusedField = 1; return true; }
+                if (mx >= tfx && mx <= tfx + tfw && my >= cy && my < cy + ROW_H) { tfName.clearSelection(); tfCode.clearSelection(); focusedField = 1; return true; }
                 cy += ROW_H + PAD;
                 int saveLbl = f.width("Save");
                 int saveW   = saveLbl + 16;
@@ -2559,7 +2564,7 @@ public class ClickGui extends Screen {
             if (!isFormOpen()) return false;
             if (key == 256) { addingNew = false; editingMode = false; editingIndex = -1; return true; }
             if ((key == 257 || key == 335) && (mods & GLFW.GLFW_MOD_SHIFT) == 0) {
-                if (focusedField == 1 && !tfCode.value.isBlank()) { applyThemeCode(tfCode.value.trim()); }
+                if (focusedField == 1 && !tfCode.value.isBlank() && !editingMode) { applyThemeCode(tfCode.value.trim()); }
                 else { saveTheme(); }
                 return true;
             }
@@ -2728,7 +2733,7 @@ public class ClickGui extends Screen {
                 int delX = panelX + W - PAD - 18;
                 boolean delHov = mx >= delX && mx <= delX + 16 && my >= ey + 1 && my < ey + ROW_H - 1;
                 fillRoundRect(g, delX, ey + 2, 16, ROW_H - 4, 2, delHov ? 0xFFCC2222 : 0xFF441111);
-                MacroConfig.drawStyledText(g, font, "X", delX + (16 - font.width("X")) / 2, ey + (ROW_H - 8) / 2, C_TXT());
+                MacroConfig.drawStyledText(g, font, "X", delX + 4, ey + (ROW_H - 8) / 2, C_TXT());
 
                 ey += ROW_H + PAD;
             }
