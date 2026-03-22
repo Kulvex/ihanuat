@@ -73,7 +73,7 @@ public class MacroConfig {
             "netherwart:1","netherwart:0","sugarcane:classical","sugarcane:sshape",
             "cactus","cocoa","mushroom:1","mushroom:0","pumpkin:1");
     public static final String DEFAULT_RESTART_SCRIPT = "netherwart:1";
-    public static final int DEFAULT_GARDEN_WARP_DELAY = 1000;
+
     public static final int DEFAULT_REST_SCRIPTING_TIME = 30;
     public static final int DEFAULT_REST_SCRIPTING_TIME_OFFSET = 3;
     public static final int DEFAULT_REST_BREAK_TIME = 20;
@@ -97,7 +97,7 @@ public class MacroConfig {
             "Fruit Bowl","Farming Exp Boost","Sunder VI");
     public static final String DEFAULT_DROP_JUNK_PLOT_TP = "0";
     public static final int DEFAULT_JUNK_THRESHOLD = 3;
-    public static final int DEFAULT_JUNK_ITEM_DROP_DELAY = 300;
+
     // Kept for backward-compat (loaded/saved) but no longer shown in UI
     public static final boolean DEFAULT_SHOW_DEBUG = false;
     public static final boolean DEFAULT_LOG_DEBUG_TO_FILE = false;
@@ -191,7 +191,6 @@ public class MacroConfig {
     public static int bookThreshold = DEFAULT_BOOK_THRESHOLD;
     public static int additionalRandomDelay = DEFAULT_ADDITIONAL_RANDOM_DELAY;
     public static String restartScript = DEFAULT_RESTART_SCRIPT;
-    public static int gardenWarpDelay = DEFAULT_GARDEN_WARP_DELAY;
     // Dynamic Rest: farming session duration range (minutes)
     public static int restScriptingTimeMin = DEFAULT_REST_SCRIPTING_TIME - DEFAULT_REST_SCRIPTING_TIME_OFFSET;
     public static int restScriptingTimeMax = DEFAULT_REST_SCRIPTING_TIME + DEFAULT_REST_SCRIPTING_TIME_OFFSET;
@@ -214,7 +213,6 @@ public class MacroConfig {
     public static java.util.List<String> junkItems = new java.util.ArrayList<>(DEFAULT_JUNK_ITEMS);
     public static String dropJunkPlotTp = DEFAULT_DROP_JUNK_PLOT_TP;
     public static int junkThreshold = DEFAULT_JUNK_THRESHOLD;
-    public static int junkItemDropDelay = DEFAULT_JUNK_ITEM_DROP_DELAY;
     public static boolean showDebug = DEFAULT_SHOW_DEBUG;
     public static boolean logDebugToFile = DEFAULT_LOG_DEBUG_TO_FILE;
     public static boolean autoRecoverUnexpectedDisconnect = DEFAULT_AUTO_RECOVER_UNEXPECTED_DISCONNECT;
@@ -229,6 +227,7 @@ public class MacroConfig {
     public static java.util.List<String> petTrackerList = new java.util.ArrayList<>(DEFAULT_PET_TRACKER_LIST);
     public static final java.util.List<String> DEFAULT_CHAT_RULES = java.util.Collections.emptyList();
     public static java.util.List<String> chatRules = new java.util.ArrayList<>(DEFAULT_CHAT_RULES);
+    public static java.util.List<String> savedThemes = new java.util.ArrayList<>();
 
     // HUD layout
     public static int hudX = DEFAULT_HUD_X;
@@ -298,16 +297,6 @@ public class MacroConfig {
     public static int hudDynamicRestBgColor     = 0x000000;  // background color for the dynamic rest screen
 
     // ── Helper panel theme colors ──────────────────────────────────────────
-    public static final int DEFAULT_HELPER_BG_COLOR    = 0xF0101018; // matches default panel bg
-    public static final int DEFAULT_HELPER_HDR_COLOR   = 0xFF18182C; // matches default panel header
-    public static final int DEFAULT_HELPER_TXT1_COLOR  = 0xFFCCCCCC; // primary text
-    public static final int DEFAULT_HELPER_TXT2_COLOR  = 0xFF8888BB; // highlighted text (blurple-tinted)
-    public static final int DEFAULT_HELPER_TXT3_COLOR  = 0xFF666677; // dim/secondary text
-    public static int helperBgColor   = DEFAULT_HELPER_BG_COLOR;
-    public static int helperHdrColor  = DEFAULT_HELPER_HDR_COLOR;
-    public static int helperTxt1Color = DEFAULT_HELPER_TXT1_COLOR;
-    public static int helperTxt2Color = DEFAULT_HELPER_TXT2_COLOR;
-    public static int helperTxt3Color = DEFAULT_HELPER_TXT3_COLOR;
 
     // ── Color helpers ─────────────────────────────────────────────────────────
 
@@ -510,7 +499,6 @@ public class MacroConfig {
         d.bookThreshold = bookThreshold;
         d.additionalRandomDelay = additionalRandomDelay;
         d.restartScript = restartScript;
-        d.gardenWarpDelay = gardenWarpDelay;
         d.restScriptingTimeMin = restScriptingTimeMin;
         d.restScriptingTimeMax = restScriptingTimeMax;
         d.restBreakTimeMin = restBreakTimeMin;
@@ -549,7 +537,6 @@ public class MacroConfig {
         d.junkItems = new java.util.ArrayList<>(junkItems);
         d.dropJunkPlotTp = dropJunkPlotTp;
         d.junkThreshold = junkThreshold;
-        d.junkItemDropDelay = junkItemDropDelay;
         d.showDebug = showDebug;
         d.logDebugToFile = logDebugToFile;
         d.autoRecoverUnexpectedDisconnect = autoRecoverUnexpectedDisconnect;
@@ -562,17 +549,13 @@ public class MacroConfig {
         d.petXpTrackedPets = new java.util.ArrayList<>(petXpTrackedPets);
         d.petTrackerList = new java.util.ArrayList<>(petTrackerList);
         d.chatRules = new java.util.ArrayList<>(chatRules);
+        d.savedThemes = new java.util.ArrayList<>(savedThemes);
         d.hudX = hudX; d.hudY = hudY; d.hudScale = hudScale; d.showHud = showHud;
         d.showTotalToday = showTotalToday;
         d.sessionProfitHudX = sessionProfitHudX; d.sessionProfitHudY = sessionProfitHudY;
         d.sessionProfitHudScale = sessionProfitHudScale; d.showSessionProfitHud = showSessionProfitHud;
         d.lifetimeHudX = lifetimeHudX; d.lifetimeHudY = lifetimeHudY;
         d.lifetimeHudScale = lifetimeHudScale; d.showLifetimeHud = showLifetimeHud;
-        d.helperBgColor   = helperBgColor;
-        d.helperHdrColor  = helperHdrColor;
-        d.helperTxt1Color = helperTxt1Color;
-        d.helperTxt2Color = helperTxt2Color;
-        d.helperTxt3Color = helperTxt3Color;
         d.lifetimeAccumulated = lifetimeAccumulated;
         d.todayDateStr = todayDateStr;
         d.todayAccumulatedMs = todayAccumulatedMs;
@@ -643,7 +626,6 @@ public class MacroConfig {
             bookThreshold = d.bookThreshold;
             additionalRandomDelay = d.additionalRandomDelay;
             if (d.restartScript != null && !d.restartScript.isBlank()) restartScript = d.restartScript;
-            gardenWarpDelay = d.gardenWarpDelay;
             if (d.restScriptingTimeMin != 0) restScriptingTimeMin = d.restScriptingTimeMin;
             if (d.restScriptingTimeMax != 0) restScriptingTimeMax = d.restScriptingTimeMax;
             if (d.restBreakTimeMin != 0) restBreakTimeMin = d.restBreakTimeMin;
@@ -691,7 +673,6 @@ public class MacroConfig {
             if (d.junkItems != null) junkItems = new java.util.ArrayList<>(d.junkItems);
             if (d.dropJunkPlotTp != null) dropJunkPlotTp = d.dropJunkPlotTp;
             junkThreshold = d.junkThreshold;
-            junkItemDropDelay = d.junkItemDropDelay;
             showDebug = d.showDebug;
             logDebugToFile = d.logDebugToFile;
             if (!logDebugToFile) DebugLogger.getInstance().close();
@@ -705,6 +686,7 @@ public class MacroConfig {
             if (d.petXpTrackedPets != null) petXpTrackedPets = new java.util.ArrayList<>(d.petXpTrackedPets);
             if (d.petTrackerList != null) petTrackerList = new java.util.ArrayList<>(d.petTrackerList);
             if (d.chatRules != null) chatRules = new java.util.ArrayList<>(d.chatRules);
+            if (d.savedThemes != null) savedThemes = new java.util.ArrayList<>(d.savedThemes);
             hudX = d.hudX; hudY = d.hudY;
             hudScale = d.hudScale > 0 ? d.hudScale : DEFAULT_HUD_SCALE;
             showHud = d.showHud;
@@ -715,11 +697,6 @@ public class MacroConfig {
             lifetimeHudX = d.lifetimeHudX; lifetimeHudY = d.lifetimeHudY;
             lifetimeHudScale = d.lifetimeHudScale > 0 ? d.lifetimeHudScale : DEFAULT_LIFETIME_HUD_SCALE;
             showLifetimeHud = d.showLifetimeHud;
-            if (d.helperBgColor   != 0) helperBgColor   = d.helperBgColor;
-            if (d.helperHdrColor  != 0) helperHdrColor  = d.helperHdrColor;
-            if (d.helperTxt1Color != 0) helperTxt1Color = d.helperTxt1Color;
-            if (d.helperTxt2Color != 0) helperTxt2Color = d.helperTxt2Color;
-            if (d.helperTxt3Color != 0) helperTxt3Color = d.helperTxt3Color;
             lifetimeAccumulated = sanitizeLifetimeAccumulated(d.lifetimeAccumulated);
             shouldRewriteConfig = lifetimeAccumulated != Math.max(0L, d.lifetimeAccumulated);
             todayDateStr = d.todayDateStr != null ? d.todayDateStr : "";
@@ -836,7 +813,6 @@ public class MacroConfig {
         int bookThreshold = DEFAULT_BOOK_THRESHOLD;
         int additionalRandomDelay = DEFAULT_ADDITIONAL_RANDOM_DELAY;
         String restartScript = DEFAULT_RESTART_SCRIPT;
-        int gardenWarpDelay = DEFAULT_GARDEN_WARP_DELAY;
         // Legacy fields kept for migration from old configs
         int restScriptingTime = 0;
         int restScriptingTimeOffset = 0;
@@ -879,7 +855,6 @@ public class MacroConfig {
         java.util.List<String> junkItems = new java.util.ArrayList<>(DEFAULT_JUNK_ITEMS);
         String dropJunkPlotTp = DEFAULT_DROP_JUNK_PLOT_TP;
         int junkThreshold = DEFAULT_JUNK_THRESHOLD;
-        int junkItemDropDelay = DEFAULT_JUNK_ITEM_DROP_DELAY;
         boolean showDebug = DEFAULT_SHOW_DEBUG;
         boolean logDebugToFile = DEFAULT_LOG_DEBUG_TO_FILE;
         boolean autoRecoverUnexpectedDisconnect = DEFAULT_AUTO_RECOVER_UNEXPECTED_DISCONNECT;
@@ -892,6 +867,7 @@ public class MacroConfig {
         java.util.List<String> petXpTrackedPets = new java.util.ArrayList<>(DEFAULT_PET_TRACKER_LIST);
         java.util.List<String> petTrackerList = new java.util.ArrayList<>(DEFAULT_PET_TRACKER_LIST);
         java.util.List<String> chatRules = new java.util.ArrayList<>(DEFAULT_CHAT_RULES);
+        java.util.List<String> savedThemes = new java.util.ArrayList<>();
         int hudX = DEFAULT_HUD_X, hudY = DEFAULT_HUD_Y;
         float hudScale = DEFAULT_HUD_SCALE;
         boolean showHud = DEFAULT_SHOW_HUD;
@@ -902,11 +878,6 @@ public class MacroConfig {
         int lifetimeHudX = DEFAULT_LIFETIME_HUD_X, lifetimeHudY = DEFAULT_LIFETIME_HUD_Y;
         float lifetimeHudScale = DEFAULT_LIFETIME_HUD_SCALE;
         boolean showLifetimeHud = DEFAULT_SHOW_LIFETIME_HUD;
-        int helperBgColor   = 0;
-        int helperHdrColor  = 0;
-        int helperTxt1Color = 0;
-        int helperTxt2Color = 0;
-        int helperTxt3Color = 0;
         long lifetimeAccumulated = 0;
         String todayDateStr = "";
         long todayAccumulatedMs = 0;
