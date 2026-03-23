@@ -57,6 +57,15 @@ public class BoosterCookieManager {
             }
 
             if (foundSlotIdx != -1) {
+                ItemStack foundStack = screen.getMenu().slots.get(foundSlotIdx).getItem();
+                String foundName = foundStack.getHoverName().getString().replaceAll("(?i)§.", "").toLowerCase();
+                if (foundName.contains("belt") || foundName.contains("necklace") || foundName.contains("vest")
+                        || foundName.contains("bracelet") || foundName.contains("cloak") || foundName.contains("gloves")) {
+                    foundSlotIdx = -1;
+                }
+            }
+
+            if (foundSlotIdx != -1) {
                 client.gameMode.handleInventoryMouseClick(screen.getMenu().containerId, foundSlotIdx, 0,
                         ClickType.QUICK_MOVE, client.player);
                 interactionTime = now;
