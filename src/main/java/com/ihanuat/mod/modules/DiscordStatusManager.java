@@ -113,6 +113,17 @@ public class DiscordStatusManager {
                 : String.format("%02d:%02d", m, s);
     }
 
+    /** Formats lifetime farmed time as HH:MM:SS or MM:SS. */
+    private static String buildLifetimeFarmedStr() {
+        long totalSecs = MacroStateManager.getLifetimeRunningTime() / 1000;
+        long h = totalSecs / 3600;
+        long m = (totalSecs % 3600) / 60;
+        long s = totalSecs % 60;
+        return h > 0
+                ? String.format("%02d:%02d:%02d", h, m, s)
+                : String.format("%02d:%02d", m, s);
+    }
+
     /** Formats the time remaining until the next Dynamic Rest. */
     private static String buildNextRestStr() {
         long nextRestTriggerMs = DynamicRestManager.getNextRestTriggerMs();
@@ -191,26 +202,36 @@ public class DiscordStatusManager {
         conn.setReadTimeout(8000);
 
         String sessionStr     = buildSessionStr();
+        String lifetimeStr    = buildLifetimeFarmedStr();
         String nextRestStr    = buildNextRestStr();
         String profitPerHour  = buildProfitPerHourStr();
         String jsonFileName   = imageFile.getName();
 
-        // Clean, no-description embed: title only + 3 inline fields + attached image.
-        // Fields order: Session Time | Next Rest | Profit/Hour
+        String fieldsJson = ""
+                +   "{\"name\":\"Session Time\","
+                +    "\"value\":\"`" + jsonEscape(sessionStr) + "`\","
+                +    "\"inline\":true},";
+        if (MacroConfig.showTotalFarmed) {
+            fieldsJson += ""
+                    + "{\"name\":\"Lifetime Farmed\","
+                    +  "\"value\":\"`" + jsonEscape(lifetimeStr) + "`\","
+                    +  "\"inline\":true},";
+        }
+        fieldsJson += ""
+                +   "{\"name\":\"Next Rest\","
+                +    "\"value\":\"`" + jsonEscape(nextRestStr) + "`\","
+                +    "\"inline\":true},"
+                +   "{\"name\":\"Profit/Hour\","
+                +    "\"value\":\"`" + jsonEscape(profitPerHour) + "`\","
+                +    "\"inline\":true}";
+
+        // Clean, no-description embed: title only + inline fields + attached image.
         String json = "{"
                 + "\"embeds\":[{"
                 + "\"title\":\"Status Update\","
                 + "\"color\":" + EMBED_COLOR_STATUS + ","
                 + "\"fields\":["
-                +   "{\"name\":\"Session Time\","
-                +    "\"value\":\"`" + jsonEscape(sessionStr)    + "`\","
-                +    "\"inline\":true},"
-                +   "{\"name\":\"Next Rest\","
-                +    "\"value\":\"`" + jsonEscape(nextRestStr)   + "`\","
-                +    "\"inline\":true},"
-                +   "{\"name\":\"Profit/Hour\","
-                +    "\"value\":\"`" + jsonEscape(profitPerHour) + "`\","
-                +    "\"inline\":true}"
+                + fieldsJson
                 + "],"
                 + "\"image\":{\"url\":\"attachment://" + jsonFileName + "\"}"
                 + "}]}";

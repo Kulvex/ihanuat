@@ -1096,7 +1096,8 @@ public class ClickGui extends Screen {
             case "dynamicrest" -> new String[]{
                     "Farming Min/Max — Randomly pick a farming session length in this minute range.",
                     "Break Min/Max — Randomly pick a break (disconnect) duration in this minute range.",
-                    "Show Daily Total — Display today's profit total in the HUD.",
+                    "Show Daily Total — Display today's active farming time in the HUD.",
+                    "Show Total Farmed — Display lifetime active farming time in the HUD.",
                     "Quit Threshold — Stop the macro when session time exceeds this many hours (0 = off).",
                     "Force Quit MC — Fully close Minecraft when the quit threshold is hit.",
             };

@@ -152,6 +152,7 @@ public class MacroHudRenderer {
 
         long sessionMs  = MacroStateManager.getSessionRunningTime();
         long todayMs    = TodayTimeTracker.getTodayMs();
+        long lifetimeMs = MacroStateManager.getLifetimeRunningTime();
         long restTriggerMs = DynamicRestManager.getNextRestTriggerMs();
         String nextRestStr = restTriggerMs <= 0 ? "---"
                 : formatTime(Math.max(0, restTriggerMs - System.currentTimeMillis()));
@@ -191,6 +192,11 @@ public class MacroHudRenderer {
             rowY += ROW_HEIGHT;
         }
 
+        if (MacroConfig.showTotalFarmed) {
+            drawRow(g, client, rowY, "total farmed", formatTime(lifetimeMs), valueColor, labelColor);
+            rowY += ROW_HEIGHT;
+        }
+
         // quit threshold (based on total today)
         if (MacroConfig.quitThresholdHours > 0) {
             long quitRemainingMs = QuitThresholdManager.getRemainingMs();
@@ -223,6 +229,7 @@ public class MacroHudRenderer {
     static int panelH() {
         int rows = 3; // state + session + next rest
         if (MacroConfig.showTotalToday) rows++;
+        if (MacroConfig.showTotalFarmed) rows++;
         if (MacroConfig.quitThresholdHours > 0) rows++;
         return PADDING_V + FONT_H + 3 + 1 + 3 + rows * ROW_HEIGHT + PADDING_V;
     }

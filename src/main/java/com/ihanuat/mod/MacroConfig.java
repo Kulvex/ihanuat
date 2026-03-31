@@ -127,6 +127,7 @@ public class MacroConfig {
     public static final float DEFAULT_HUD_SCALE = 1.0f;
     public static final boolean DEFAULT_SHOW_HUD = true;
     public static final boolean DEFAULT_SHOW_TOTAL_TODAY = true;
+    public static final boolean DEFAULT_SHOW_TOTAL_FARMED = true;
 
     // Session profit HUD
     public static final int DEFAULT_SESSION_PROFIT_HUD_X = 10;
@@ -243,6 +244,7 @@ public class MacroConfig {
     public static float hudScale = DEFAULT_HUD_SCALE;
     public static boolean showHud = DEFAULT_SHOW_HUD;
     public static boolean showTotalToday = DEFAULT_SHOW_TOTAL_TODAY;
+    public static boolean showTotalFarmed = DEFAULT_SHOW_TOTAL_FARMED;
 
     // Session profit HUD
     public static int sessionProfitHudX = DEFAULT_SESSION_PROFIT_HUD_X;
@@ -562,6 +564,7 @@ public class MacroConfig {
         d.savedThemes = new java.util.ArrayList<>(savedThemes);
         d.hudX = hudX; d.hudY = hudY; d.hudScale = hudScale; d.showHud = showHud;
         d.showTotalToday = showTotalToday;
+        d.showTotalFarmed = showTotalFarmed;
         d.sessionProfitHudX = sessionProfitHudX; d.sessionProfitHudY = sessionProfitHudY;
         d.sessionProfitHudScale = sessionProfitHudScale; d.showSessionProfitHud = showSessionProfitHud;
         d.lifetimeHudX = lifetimeHudX; d.lifetimeHudY = lifetimeHudY;
@@ -703,6 +706,7 @@ public class MacroConfig {
             hudScale = d.hudScale > 0 ? d.hudScale : DEFAULT_HUD_SCALE;
             showHud = d.showHud;
             showTotalToday = d.showTotalToday;
+            showTotalFarmed = d.showTotalFarmed;
             sessionProfitHudX = d.sessionProfitHudX; sessionProfitHudY = d.sessionProfitHudY;
             sessionProfitHudScale = d.sessionProfitHudScale > 0 ? d.sessionProfitHudScale : DEFAULT_SESSION_PROFIT_HUD_SCALE;
             showSessionProfitHud = d.showSessionProfitHud;
@@ -886,6 +890,7 @@ public class MacroConfig {
         float hudScale = DEFAULT_HUD_SCALE;
         boolean showHud = DEFAULT_SHOW_HUD;
         boolean showTotalToday = DEFAULT_SHOW_TOTAL_TODAY;
+        boolean showTotalFarmed = DEFAULT_SHOW_TOTAL_FARMED;
         int sessionProfitHudX = DEFAULT_SESSION_PROFIT_HUD_X, sessionProfitHudY = DEFAULT_SESSION_PROFIT_HUD_Y;
         float sessionProfitHudScale = DEFAULT_SESSION_PROFIT_HUD_SCALE;
         boolean showSessionProfitHud = DEFAULT_SHOW_SESSION_PROFIT_HUD;
