@@ -86,8 +86,8 @@ public class MacroConfig {
     public static final boolean DEFAULT_SUPER_CRAFT_BEFORE_REST = false;
     public static final java.util.List<String> DEFAULT_SUPER_CRAFT_CROPS = java.util.Arrays.asList(
     "enchanted hay bale", "box of seeds", "enchanted baked potato",
-    "enchanted golden carrot", "enchanted melon", "polished pumpkin",
-    "enchanted sugar cane", "enchanted cactus", "enchanted red mushroom block",
+    "enchanted golden carrot", "polished pumpkin",
+    "enchanted sugar cane", "enchanted red mushroom block",
     "enchanted brown mushroom block", "enchanted cookie", "mutant nether wart",
     "compacted sunflower", "compacted moonflower", "compacted wild rose");
     public static final boolean DEFAULT_ENABLE_PLOT_TP_REWARP = false;
